@@ -16,6 +16,9 @@ const ICON = {
   copy: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 15V5a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
   search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   retry: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  up: '<svg viewBox="0 0 24 24"><path d="M7 11v9H4v-9zM7 11l4-8c1.5 0 2.5 1 2.2 2.6L12.8 9H19a2 2 0 0 1 2 2.4l-1.3 6.5A2 2 0 0 1 17.8 20H7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  down: '<svg viewBox="0 0 24 24"><path d="M7 13V4H4v9zM7 13l4 8c1.5 0 2.5-1 2.2-2.6L12.8 15H19a2 2 0 0 0 2-2.4l-1.3-6.5A2 2 0 0 0 17.8 4H7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  spark: '<svg class="spark" viewBox="0 0 24 24"><path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2z" fill="currentColor"/><path d="M19 3l.8 2.2L22 6l-2.2.8L19 9l-.8-2.2L16 6l2.2-.8z" fill="currentColor"/></svg>',
   back: '<svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 
@@ -107,7 +110,7 @@ function sourceCard(s, tok, open) {
   const sup = s.status === "superseded";
   const pages = s.page_range[0] === s.page_range[1] ? `p.${s.page_range[0]}` : `p.${s.page_range[0]}–${s.page_range[1]}`;
   return `
-  <article class="card src ${sup ? "superseded" : ""}" data-p="${esc(prefixOf(s.doc_no))}">
+  <article class="card src ${sup ? "superseded" : ""}" id="src-${s.n}" data-p="${esc(prefixOf(s.doc_no))}">
     <div class="src-top">
       <span class="src-doc">${esc(s.doc_no)} · Rev ${esc(s.revision)}</span>
       <span class="badge ${sup ? "superseded" : "current"}">${sup ? "Superseded" : "Current"}</span>
@@ -145,8 +148,7 @@ function render(r) {
     return html;
   }
 
-  html += `<div class="card"><div class="card-head"><h2>Answer</h2>
-      ${r.mode === "llm" ? `<button class="btn ghost" type="button" id="copy">${ICON.copy}Copy</button>` : ""}</div>`;
+  html += `<div class="card"><div class="card-head"><h2>Answer</h2></div>`;
   if (r.safety_flag) html += `<div class="banner safety">${ICON.warn}<div>Safety-critical. Confirm against the SOP page below before you act.</div></div>`;
   if (r.mode === "retrieval_only") {
     const top = r.sources.find((s) => s.cited) || r.sources[0];
@@ -158,7 +160,17 @@ function render(r) {
     html += `<div class="banner info">${ICON.info}<div>${esc(r.notice)}</div></div>`;
   } else html += `<div class="answer" id="answer-text">${formatAnswer(r.answer)}</div>`;
   (r.revision_notes || []).forEach((n) => { html += `<div class="banner info">${ICON.info}<div>${esc(n)}</div></div>`; });
-  html += `<p class="meta">${r.latency_ms} ms</p></div>`;
+
+  const cited = r.sources.filter((s) => s.cited);
+  if (cited.length) {
+    html += `<div class="cites"><span class="lbl">Sources</span>` + cited.map((s) =>
+      `<a class="cite ${s.status === "superseded" ? "sup" : ""}" href="#src-${s.n}" data-src="${s.n}"><i></i>${esc(s.doc_no)} · Rev ${esc(s.revision)} · p.${s.page}</a>`).join("") + "</div>";
+  }
+  html += `<div class="ans-actions" data-trace="${esc(r.trace_id)}">
+      ${r.mode === "llm" ? `<button class="act" type="button" id="copy">${ICON.copy}<span>Copy</span></button>` : ""}
+      <button class="act" type="button" data-fb="1" aria-label="This answer was helpful">${ICON.up}<span>Helpful</span></button>
+      <button class="act" type="button" data-fb="0" aria-label="This answer was not helpful">${ICON.down}<span>Not helpful</span></button>
+      <span class="thanks" id="thanks"></span><span class="ms">${r.latency_ms} ms</span></div></div>`;
 
   const used = r.sources.filter((s) => s.cited), other = r.sources.filter((s) => !s.cited);
   html += `<h3 class="sec-title">Source</h3>` + used.map((s, i) => sourceCard(s, tok, i === 0)).join("");
@@ -181,6 +193,25 @@ function show(html) {
     copy.lastChild.textContent = "Copied";
     setTimeout(() => (copy.lastChild.textContent = "Copy"), 1500);
   };
+  // Source chips jump to (and open) the matching source card.
+  document.querySelectorAll(".cite").forEach((a) => a.addEventListener("click", (e) => {
+    e.preventDefault();
+    const card = $("src-" + a.dataset.src);
+    if (!card) return;
+    const d = card.querySelector("details"); if (d) d.open = true;
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+  }));
+  // Thumbs up / down: stored in logs/feedback.jsonl for review.
+  document.querySelectorAll("[data-fb]").forEach((b) => b.addEventListener("click", async () => {
+    const row = b.closest(".ans-actions");
+    row.querySelectorAll("[data-fb]").forEach((x) => (x.disabled = true));
+    b.classList.add("on");
+    try {
+      const res = await fetch("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trace_id: row.dataset.trace, helpful: b.dataset.fb === "1" }) });
+      $("thanks").textContent = res.ok ? "Thanks. Saved for review." : "Could not save feedback.";
+    } catch { $("thanks").textContent = "Could not save feedback."; }
+  }));
   const retry = $("retry"); if (retry) retry.onclick = () => ask(lastQuestion);
 }
 
@@ -190,17 +221,23 @@ function reset() {
   window.scrollTo({ top: 0 });
 }
 
+// Drawn once; only the status word and the seconds counter change, so the animations do not restart.
+const STAGES = ["Searching the documents", "Reading the matching sections", "Checking document revisions", "Writing the answer"];
 function showLoading(q) {
   const start = Date.now();
-  const paint = () => {
+  show(`<div class="card">${questionHeader(q)}</div>
+    <div class="card loading" aria-busy="true">
+      <div class="think">${ICON.spark}<span class="think-word" id="tw">${STAGES[0]}</span></div>
+      <div class="line w1"></div><div class="line w2"></div><div class="line w3"></div>
+      <p class="msg" id="elapsed">Working… 0s</p></div>`);
+  timer = setInterval(() => {
     const s = Math.floor((Date.now() - start) / 1000);
-    const extra = s >= 6 ? " The local AI can take up to 20 seconds, especially on the first question." : "";
-    show(`<div class="card">${questionHeader(q)}</div>
-      <div class="card loading" aria-busy="true"><h2>Searching the documents</h2>
-        <div class="line w1"></div><div class="line w2"></div><div class="line w3"></div>
-        <p class="msg">Working… ${s}s${extra}</p></div>`);
-  };
-  paint(); timer = setInterval(paint, 1000);
+    const tw = $("tw"), el = $("elapsed");
+    if (!tw || !el) return;
+    const next = STAGES[Math.floor(s / 2) % STAGES.length];
+    if (tw.textContent !== next) { tw.textContent = next; tw.classList.remove("swap"); void tw.offsetWidth; tw.classList.add("swap"); }
+    el.textContent = `Working… ${s}s` + (s >= 6 ? " The local AI can take up to 20 seconds, especially on the first question." : "");
+  }, 500);
 }
 
 /* ---------- ask ---------- */

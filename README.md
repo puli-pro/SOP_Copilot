@@ -58,8 +58,10 @@ Chunking: one chunk per numbered section, tables kept whole as Markdown with the
 
 ## Endpoints
 
-`POST /api/ask` · `GET /api/documents` · `GET /api/pdf/{file}#page=N` · `GET /api/health` · interactive docs at `/docs`.
-Every request appends a line to `logs/trace.jsonl` (question, retrieved chunks with scores, mode, latency).
+`POST /api/ask` · `POST /api/feedback` (thumbs up/down on an answer) · `GET /api/documents` · `GET /api/pdf/{file}#page=N` · `GET /api/health` · interactive docs at `/docs`.
+Every request appends a line to `logs/trace.jsonl` (question, retrieved chunks with scores, mode, latency); feedback goes to `logs/feedback.jsonl`, keyed by the same `trace_id`.
+
+The UI is plain HTML/CSS/JS in `app/static/` (no build step). Its patterns (thinking indicator, rounded prompt bar, source chips, answer action row) were chosen after browsing 21st.dev's AI-chat components and re-written by hand.
 
 ## Evaluation
 

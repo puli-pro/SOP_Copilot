@@ -5,6 +5,11 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=2, max_length=500)
 
 
+class FeedbackRequest(BaseModel):
+    trace_id: str = Field(min_length=4, max_length=32, pattern=r"^[a-z0-9]+$")
+    helpful: bool
+
+
 class Source(BaseModel):
     n: int
     doc_no: str

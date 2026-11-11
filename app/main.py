@@ -1,6 +1,7 @@
 """FastAPI app.  Run:  uvicorn app.main:app --host 0.0.0.0 --port 8000"""
 import json
 import logging
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -8,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import config
 from app.rag import llm, pipeline
-from app.schemas import AskRequest, AskResponse
+from app.schemas import AskRequest, AskResponse, FeedbackRequest
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("sop-copilot")
@@ -48,6 +49,16 @@ def ask(req: AskRequest):
         return pipeline.ask(req.question)
     except FileNotFoundError:
         raise HTTPException(503, "The document index has not been built yet. Run: python -m app.ingest.build_index")
+
+
+@app.post("/api/feedback")
+def feedback(req: FeedbackRequest):
+    """A supervisor's thumbs up / down on an answer. Stored next to the trace log for review and eval."""
+    config.LOG_DIR.mkdir(parents=True, exist_ok=True)
+    record = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "trace_id": req.trace_id, "helpful": req.helpful}
+    with (config.LOG_DIR / "feedback.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
+    return {"ok": True}
 
 
 @app.get("/api/documents")

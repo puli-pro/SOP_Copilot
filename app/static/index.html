@@ -59,11 +59,12 @@
     <div class="dock">
       <form id="form" class="composer" autocomplete="off">
         <label for="q" class="sr">Your question</label>
-        <textarea id="q" rows="1" maxlength="500" placeholder="Ask, or type a code…" enterkeyhint="send"></textarea>
-        <button id="ask" type="submit" aria-label="Ask">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>Ask</span>
-        </button>
+        <div class="field">
+          <textarea id="q" rows="1" maxlength="500" placeholder="Ask, or type a code like AL-305…" enterkeyhint="send"></textarea>
+          <button id="ask" type="submit" aria-label="Ask">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
       </form>
       <p class="disclaimer">Information only. It does not replace the approvals your SOPs require.</p>
     </div>
