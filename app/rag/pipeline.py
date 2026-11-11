@@ -167,10 +167,12 @@ def ask(question: str) -> dict:
         resp.update(
             mode="retrieval_only", answerable=True, reason=f"llm unavailable: {e}",
             notice="The AI summary is not available right now. These are the matching sections of the plant documents.",
-            sources=[_source(i, h, qtokens, cited=(i == 1)) for i, h in enumerate(hits, start=1)],
+            # Without the LLM nothing can decide which sections matter, so show all of them as the source
+            # (a lockout answer needs both the normal rule and the owner-absent exception).
+            sources=[_source(i, h, qtokens, cited=True) for i, h in enumerate(hits, start=1)],
         )
-        resp["safety_flag"] = bool(hits) and hits[0].chunk["has_safety_terms"]
-        resp["revision_notes"] = _revision_notes(retr, [s for s in resp["sources"] if s["cited"]])
+        resp["safety_flag"] = any(h.chunk["has_safety_terms"] for h in hits[:2])
+        resp["revision_notes"] = _revision_notes(retr, resp["sources"][:1])
         return finish()
 
     # Layer 3: validate citations. An answer nobody can point to is treated as "not found".

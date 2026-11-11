@@ -18,55 +18,100 @@
   </script>
 </head>
 <body>
-  <div class="app">
-    <header class="top">
-      <div class="brand">
+  <div class="shell">
+
+    <!-- Sidebar: desktop only (>= 1100px) -->
+    <aside class="side" aria-label="Navigation">
+      <div class="brand" role="button" tabindex="0" aria-label="SOP Copilot, back to start">
         <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h9l5 5v13H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M8.5 13h7M8.5 16.5h4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        <div>
-          <h1>SOP Copilot</h1>
-          <p>Answers from your plant's documents</p>
-        </div>
+        <div><h1>SOP Copilot</h1><p>Answers from your plant's documents</p></div>
       </div>
-      <div class="top-actions">
-        <span id="status" class="pill" role="status">checking…</span>
-        <button id="theme" class="icon-btn" type="button" aria-label="Switch light / dark theme">
+
+      <button class="btn new-q" id="new-q" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>New question
+      </button>
+
+      <div id="side-recent-wrap" class="side-sec" hidden>
+        <h3 class="eyebrow">Recent</h3>
+        <div id="side-recent" class="side-list"></div>
+      </div>
+
+      <div class="side-sec">
+        <h3 class="eyebrow">Documents</h3>
+        <ul id="side-docs" class="docs compact"></ul>
+      </div>
+
+      <div class="side-foot">
+        <span class="pill status" role="status">checking…</span>
+        <button class="icon-btn theme-toggle" type="button" aria-label="Switch light / dark theme">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
         </button>
       </div>
-    </header>
+    </aside>
 
-    <main id="main" aria-live="polite">
-      <!-- Empty state, replaced by the answer once a question is asked -->
-      <section id="welcome" class="welcome">
-        <h2>What do you need to know?</h2>
-        <p class="lead">Ask in your own words, or just type a code like <b>AL-305</b> or <b>BH-220 OD</b>.</p>
-
-        <h3 class="eyebrow">Try asking</h3>
-        <div id="chips" class="chips"></div>
-
-        <div id="recent-wrap" hidden>
-          <h3 class="eyebrow">Recent</h3>
-          <div id="recent" class="chips"></div>
+    <div class="content">
+      <!-- Top bar: phone and tablet only (< 1100px) -->
+      <header class="top">
+        <div class="brand" role="button" tabindex="0" aria-label="SOP Copilot, back to start">
+          <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h9l5 5v13H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M8.5 13h7M8.5 16.5h4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <div><h1>SOP Copilot</h1><p>Answers from your plant's documents</p></div>
         </div>
-
-        <h3 class="eyebrow">Documents I can answer from</h3>
-        <ul id="docs" class="docs"></ul>
-      </section>
-
-      <section id="result"></section>
-    </main>
-
-    <div class="dock">
-      <form id="form" class="composer" autocomplete="off">
-        <label for="q" class="sr">Your question</label>
-        <div class="field">
-          <textarea id="q" rows="1" maxlength="500" placeholder="Ask, or type a code like AL-305…" enterkeyhint="send"></textarea>
-          <button id="ask" type="submit" aria-label="Ask">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="top-actions">
+          <span class="pill status" role="status">checking…</span>
+          <button class="icon-btn theme-toggle" type="button" aria-label="Switch light / dark theme">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           </button>
         </div>
-      </form>
-      <p class="disclaimer">Information only. It does not replace the approvals your SOPs require.</p>
+      </header>
+
+      <main id="main" aria-live="polite">
+        <!-- Empty state, replaced by the answer once a question is asked -->
+        <section id="welcome" class="welcome">
+          <div class="hero">
+            <h2>What do you need to know?</h2>
+            <p class="lead">Ask in your own words, or just type a code like <b>AL-305</b> or <b>BH-220 OD</b>.</p>
+          </div>
+
+          <h3 class="eyebrow">Try asking</h3>
+          <div id="chips" class="chips"></div>
+
+          <div class="trust">
+            <div class="trust-card"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div><b>Current revision first</b><span>Superseded revisions are set aside unless you ask about them.</span></div></div>
+            <div class="trust-card"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l5 5v13H6z M14 3v5h5 M9 13h7 M9 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+              <div><b>Shows its source</b><span>Every answer names the document, revision, section and page.</span></div></div>
+            <div class="trust-card"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16.5 16.5L21 21M8.5 8.5l5 5M13.5 8.5l-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <div><b>Says when it doesn't know</b><span>If it isn't in your documents, it tells you instead of guessing.</span></div></div>
+          </div>
+
+          <!-- Phone and tablet only; on desktop these live in the sidebar -->
+          <div class="mobile-only">
+            <div id="recent-wrap" hidden>
+              <h3 class="eyebrow">Recent</h3>
+              <div id="recent" class="chips inline"></div>
+            </div>
+            <h3 class="eyebrow">Documents I can answer from</h3>
+            <ul id="docs" class="docs"></ul>
+          </div>
+        </section>
+
+        <section id="result"></section>
+      </main>
+
+      <div class="dock">
+        <div class="dock-in">
+          <form id="form" class="composer" autocomplete="off">
+            <label for="q" class="sr">Your question</label>
+            <div class="field">
+              <textarea id="q" rows="1" maxlength="500" placeholder="Ask, or type a code like AL-305…" enterkeyhint="send"></textarea>
+              <button id="ask" type="submit" aria-label="Ask">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+          </form>
+          <p class="disclaimer">Information only. It does not replace the approvals your SOPs require.</p>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -1,11 +1,12 @@
 "use strict";
 
+// The five sample questions from the brief. `p` is the document family (colours the card), `tag` its topic.
 const SAMPLES = [
-  "What is the recommended coolant concentration for the TX-200 CNC turning centre?",
-  "The machine is showing alarm AL-104. What does it mean and what should the operator do?",
-  "Who is allowed to remove a lockout lock from a machine?",
-  "What is the outer diameter tolerance for the BH-220 bearing housing?",
-  "How often should spindle runout be checked, and who does it?",
+  { q: "What is the recommended coolant concentration for the TX-200 CNC turning centre?", p: "MNT", tag: "Maintenance" },
+  { q: "The machine is showing alarm AL-104. What does it mean and what should the operator do?", p: "MNT", tag: "Alarms" },
+  { q: "Who is allowed to remove a lockout lock from a machine?", p: "SAF", tag: "Safety" },
+  { q: "What is the outer diameter tolerance for the BH-220 bearing housing?", p: "QC", tag: "Quality" },
+  { q: "How often should spindle runout be checked, and who does it?", p: "MNT", tag: "Maintenance" },
 ];
 
 const ICON = {
@@ -99,10 +100,8 @@ function bestMatch(s, tok) {
     });
     if (best && bestScore >= 2) return head.map((h, i) => [h, best[i] || ""]);
   }
-  const text = lines.filter((l) => !l.startsWith("|"));
-  let best = "", bestScore = -1;
-  text.forEach((l) => { const sc = tok.words.filter((w) => l.toLowerCase().includes(w)).length; if (sc > bestScore) { best = l; bestScore = sc; } });
-  return best ? [["", best]] : [];
+  // Prose (procedures, rules) is never cut down to one line: that could drop an exception or a safety step.
+  return [];
 }
 
 /* ---------- render ---------- */
@@ -131,6 +130,10 @@ function questionHeader(q) {
           <p class="question">${esc(q)}</p>`;
 }
 
+// Two columns on wide screens (answer | evidence); they stack on phones.
+const grid = (left, right = "") =>
+  `<div class="result-grid ${right ? "" : "single"}"><div class="col-main">${left}</div>${right ? `<div class="col-src">${right}</div>` : ""}</div>`;
+
 function render(r) {
   const tok = questionTokens(r.question);
   let html = `<div class="card">${questionHeader(r.question)}</div>`;
@@ -145,7 +148,7 @@ function render(r) {
         r.closest.map((c) => `<a class="btn ghost" href="${esc(c.pdf_url)}" target="_blank" rel="noopener">${ICON.pdf}${esc(c.doc_no)} Rev ${esc(c.revision)}</a>`).join("") + "</div>";
     }
     html += `<p class="meta">${r.latency_ms} ms</p></div>`;
-    return html;
+    return grid(html);
   }
 
   html += `<div class="card"><div class="card-head"><h2>Answer</h2></div>`;
@@ -164,7 +167,7 @@ function render(r) {
   const cited = r.sources.filter((s) => s.cited);
   if (cited.length) {
     html += `<div class="cites"><span class="lbl">Sources</span>` + cited.map((s) =>
-      `<a class="cite ${s.status === "superseded" ? "sup" : ""}" href="#src-${s.n}" data-src="${s.n}"><i></i>${esc(s.doc_no)} · Rev ${esc(s.revision)} · p.${s.page}</a>`).join("") + "</div>";
+      `<a class="cite ${s.status === "superseded" ? "sup" : ""}" href="#src-${s.n}" data-src="${s.n}"><i></i>${esc(s.doc_no)} Rev ${esc(s.revision)} · §${esc(s.section.split(".")[0])} · p.${s.page}</a>`).join("") + "</div>";
   }
   html += `<div class="ans-actions" data-trace="${esc(r.trace_id)}">
       ${r.mode === "llm" ? `<button class="act" type="button" id="copy">${ICON.copy}<span>Copy</span></button>` : ""}
@@ -173,11 +176,11 @@ function render(r) {
       <span class="thanks" id="thanks"></span><span class="ms">${r.latency_ms} ms</span></div></div>`;
 
   const used = r.sources.filter((s) => s.cited), other = r.sources.filter((s) => !s.cited);
-  html += `<h3 class="sec-title">Source</h3>` + used.map((s, i) => sourceCard(s, tok, i === 0)).join("");
+  let evidence = `<h3 class="sec-title">Source</h3>` + used.map((s, i) => sourceCard(s, tok, i === 0)).join("");
   if (other.length) {
-    html += `<details class="others"><summary>Other matching sections (${other.length})</summary>${other.map((s) => sourceCard(s, tok, false)).join("")}</details>`;
+    evidence += `<details class="others"><summary>Other matching sections (${other.length})</summary>${other.map((s) => sourceCard(s, tok, false)).join("")}</details>`;
   }
-  return html;
+  return grid(html, evidence);
 }
 
 function show(html) {
@@ -225,11 +228,11 @@ function reset() {
 const STAGES = ["Searching the documents", "Reading the matching sections", "Checking document revisions", "Writing the answer"];
 function showLoading(q) {
   const start = Date.now();
-  show(`<div class="card">${questionHeader(q)}</div>
+  show(grid(`<div class="card">${questionHeader(q)}</div>
     <div class="card loading" aria-busy="true">
       <div class="think">${ICON.spark}<span class="think-word" id="tw">${STAGES[0]}</span></div>
       <div class="line w1"></div><div class="line w2"></div><div class="line w3"></div>
-      <p class="msg" id="elapsed">Working… 0s</p></div>`);
+      <p class="msg" id="elapsed">Working… 0s</p></div>`));
   timer = setInterval(() => {
     const s = Math.floor((Date.now() - start) / 1000);
     const tw = $("tw"), el = $("elapsed");
@@ -262,44 +265,56 @@ async function ask(question) {
   } catch (e) {
     clearInterval(timer);
     const offline = e instanceof TypeError;
-    show(`<div class="card">${questionHeader(question)}</div>
+    show(grid(`<div class="card">${questionHeader(question)}</div>
       <div class="card error"><h3>${offline ? "Can't reach the copilot" : "Something went wrong"}</h3>
       <p>${offline ? "Check that you are on the plant Wi-Fi, then try again." : esc(e.message)}</p>
-      <div class="actions"><button class="btn" type="button" id="retry">${ICON.retry}Try again</button></div></div>`);
+      <div class="actions"><button class="btn" type="button" id="retry">${ICON.retry}Try again</button></div></div>`));
   } finally { askBtn.disabled = false; }
 }
 
 /* ---------- welcome screen ---------- */
-function chip(text, target) {
+// A sample-question card: topic tag + the question, coloured by document family.
+function sampleCard(s, target) {
   const b = document.createElement("button");
-  b.type = "button"; b.className = "chip"; b.innerHTML = ICON.chat + "<span></span>"; b.lastChild.textContent = text;
-  b.onclick = () => ask(text); target.appendChild(b);
+  b.type = "button"; b.className = "chip"; b.dataset.p = s.p;
+  b.innerHTML = '<span class="tag"></span><span class="q"></span>';
+  b.querySelector(".tag").textContent = s.tag; b.querySelector(".q").textContent = s.q;
+  b.onclick = () => ask(s.q); target.appendChild(b);
 }
+// A "recent question" pill (phone / tablet) and a list row (desktop sidebar).
 function drawRecent() {
   const list = store.get("recent", []);
   $("recent-wrap").hidden = !list.length;
-  $("recent").innerHTML = ""; $("recent").classList.add("inline");
-  list.forEach((q) => chip(q.length > 44 ? q.slice(0, 42) + "…" : q, $("recent")));
-  [...$("recent").children].forEach((b, i) => (b.onclick = () => ask(list[i])));
+  $("side-recent-wrap").hidden = !list.length;
+  $("recent").innerHTML = ""; $("side-recent").innerHTML = "";
+  list.forEach((q) => {
+    const pill = document.createElement("button");
+    pill.type = "button"; pill.className = "chip"; pill.textContent = q.length > 44 ? q.slice(0, 42) + "…" : q;
+    pill.onclick = () => ask(q); $("recent").appendChild(pill);
+    const row = document.createElement("button");
+    row.type = "button"; row.className = "side-item"; row.textContent = q; row.title = q;
+    row.onclick = () => ask(q); $("side-recent").appendChild(row);
+  });
 }
 
 async function loadStatus() {
-  const el = $("status");
-  const set = (text, cls) => { el.textContent = text; el.className = "pill " + cls; };
+  const pills = document.querySelectorAll(".status");
+  const set = (text, cls, title = "") => pills.forEach((el) => { el.textContent = text; el.className = "pill status " + cls; el.title = title; });
   try {
     const h = await (await fetch("/api/health")).json();
     if (!h.index_loaded) set("index missing", "bad");
     else if (h.llm.reachable && h.llm.model_ready) set("Ready", "ok");
-    else { set("Search only", "warn"); el.title = "The AI model is not running, so answers show the matching document sections."; }
+    else set("Search only", "warn", "The AI model is not running, so answers show the matching document sections.");
     const d = await (await fetch("/api/documents")).json();
     const by = {};
     d.documents.forEach((x) => (by[x.doc_no] = by[x.doc_no] || []).push(x));
-    $("docs").innerHTML = Object.values(by).map((revs) => {
+    const html = Object.values(by).map((revs) => {
       revs.sort((a, b) => b.revision - a.revision);
       const t = revs[0];
       const line = revs.map((r) => `Rev ${esc(r.revision)} ${r.status === "current" ? "(current)" : "(superseded)"}`).join(" · ");
       return `<li data-p="${esc(prefixOf(t.doc_no))}"><div class="t">${esc(t.title)}</div><div class="m">${esc(t.doc_no)} · ${line}</div></li>`;
     }).join("");
+    $("docs").innerHTML = html; $("side-docs").innerHTML = html;
   } catch { set("offline", "bad"); }
 }
 
@@ -312,15 +327,19 @@ function autosize() {
 qEl.addEventListener("input", autosize);
 qEl.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(qEl.value); } });
 $("form").addEventListener("submit", (e) => { e.preventDefault(); ask(qEl.value); });
-document.querySelector(".brand").addEventListener("click", reset);
+document.querySelectorAll(".brand").forEach((b) => {
+  b.addEventListener("click", reset);
+  b.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); reset(); } });
+});
+$("new-q").addEventListener("click", reset);
 
-$("theme").addEventListener("click", () => {
+document.querySelectorAll(".theme-toggle").forEach((btn) => btn.addEventListener("click", () => {
   const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   const next = cur === "dark" ? "light" : "dark";
   document.documentElement.dataset.theme = next;
   try { localStorage.setItem("theme", next); } catch { /* ignore */ }
-});
+}));
 
-SAMPLES.forEach((s) => chip(s, $("chips")));
+SAMPLES.forEach((s) => sampleCard(s, $("chips")));
 drawRecent();
 loadStatus();
