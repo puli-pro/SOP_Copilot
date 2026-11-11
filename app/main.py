@@ -27,6 +27,15 @@ def warm_up() -> None:
         log.error("Index not found. Run: python -m app.ingest.build_index")
 
 
+@app.middleware("http")
+async def no_cache_for_ui(request: Request, call_next):
+    """The UI files change while we develop; without this a phone keeps showing the old page."""
+    response = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 @app.exception_handler(Exception)
 async def unhandled(request: Request, exc: Exception):
     log.exception("Unhandled error on %s", request.url.path)

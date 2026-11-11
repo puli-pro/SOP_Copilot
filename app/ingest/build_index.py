@@ -49,9 +49,9 @@ def main():
         sys.exit("No SOP chunks produced; check PDF_DIR.")
 
     print(f"Embedding {len(chunks)} chunks with {config.EMBED_MODEL} ...")
-    from sentence_transformers import SentenceTransformer
+    from app.rag.retriever import load_embedder
 
-    model = SentenceTransformer(config.EMBED_MODEL)
+    model = load_embedder()
     emb = model.encode([c["text_with_prefix"] for c in chunks], normalize_embeddings=True, show_progress_bar=False)
 
     config.INDEX_DIR.mkdir(parents=True, exist_ok=True)

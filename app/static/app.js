@@ -6,136 +6,284 @@ const SAMPLES = [
   "Who is allowed to remove a lockout lock from a machine?",
   "What is the outer diameter tolerance for the BH-220 bearing housing?",
   "How often should spindle runout be checked, and who does it?",
-  "AL-305",
 ];
 
-const $ = (id) => document.getElementById(id);
-const resultEl = $("result");
-let timer = null;
+const ICON = {
+  chat: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  warn: '<svg viewBox="0 0 24 24"><path d="M12 3l10 18H2z M12 10v5 M12 18.2v.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v6M12 7.5v.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  pdf: '<svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z M14 3v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  copy: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 15V5a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  retry: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  back: '<svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
 
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = (id) => document.getElementById(id);
+const resultEl = $("result"), welcomeEl = $("welcome"), qEl = $("q"), askBtn = $("ask");
+let timer = null, lastQuestion = "";
+
+/* ---------- helpers ---------- */
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const prefixOf = (docNo) => String(docNo).split("-")[0];
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode: ignore */ } },
+};
+const STOP = new Set("a an and are as at be by can do does for from how i in is it of on or should the to what when where which who will with you your that this".split(" "));
+
+// Same idea as the server's normaliser: "al305" -> "al-305". Used only to highlight the matching table row.
+function questionTokens(q) {
+  const n = q.toLowerCase().replace(/\b(al|bh|qf|sf|cnc)\s?-?\s?(\d{2,4}[a-z]?)\b/g, "$1-$2");
+  const words = (n.match(/[a-z0-9]+(?:-[a-z0-9]+)*/g) || []).filter((w) => !STOP.has(w) && w.length > 1);
+  return { words, codes: words.filter((w) => /^[a-z]{1,4}-\d/.test(w)) };
 }
 
-// Turn the chunk text (plain lines + markdown tables) into safe HTML.
-function renderExcerpt(text) {
+function inline(s) { return esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"); }
+
+// Turn the model's plain text into paragraphs / numbered steps / bullets (escaped first, so it is safe).
+function formatAnswer(text) {
+  const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  let html = "", list = null;
+  const close = () => { if (list) { html += `</${list}>`; list = null; } };
+  for (const l of lines) {
+    const num = l.match(/^\d+[.)]\s+(.*)/), bul = l.match(/^[-•*]\s+(.*)/);
+    if (num) { if (list !== "ol") { close(); html += "<ol>"; list = "ol"; } html += `<li>${inline(num[1])}</li>`; }
+    else if (bul) { if (list !== "ul") { close(); html += "<ul>"; list = "ul"; } html += `<li>${inline(bul[1])}</li>`; }
+    else { close(); html += `<p>${inline(l)}</p>`; }
+  }
+  close();
+  return html;
+}
+
+// Chunk text (plain lines + Markdown tables) -> safe HTML, with the best-matching table row highlighted.
+function renderExcerpt(text, tok) {
   const lines = text.split("\n");
   let html = "", i = 0;
   while (i < lines.length) {
     if (lines[i].startsWith("|")) {
       const rows = [];
-      while (i < lines.length && lines[i].startsWith("|")) { rows.push(lines[i]); i++; }
+      while (i < lines.length && lines[i].startsWith("|")) rows.push(lines[i++]);
       const cells = (r) => r.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      const body = rows.slice(2).map(cells);
+      const score = body.map((r) => {
+        const t = r.join(" ").toLowerCase();
+        return tok.codes.some((c) => t.includes(c)) ? 99 : tok.words.filter((w) => t.includes(w)).length;
+      });
+      const best = Math.max(0, ...score);
       html += "<table><thead><tr>" + cells(rows[0]).map((c) => `<th>${esc(c)}</th>`).join("") + "</tr></thead><tbody>";
-      rows.slice(2).forEach((r) => { html += "<tr>" + cells(r).map((c) => `<td>${esc(c)}</td>`).join("") + "</tr>"; });
+      body.forEach((r, k) => {
+        html += `<tr${best >= 2 && score[k] === best ? ' class="hl"' : ""}>` + r.map((c) => `<td>${esc(c)}</td>`).join("") + "</tr>";
+      });
       html += "</tbody></table>";
-    } else {
-      html += `<p>${esc(lines[i])}</p>`; i++;
-    }
+    } else { html += `<p>${esc(lines[i])}</p>`; i++; }
   }
   return html;
 }
 
-function sourceCard(s) {
+// Search-only mode (no LLM): still put the single best-matching table row or line right in the answer card.
+function bestMatch(s, tok) {
+  const lines = s.text.split("\n");
+  const tableLines = lines.filter((l) => l.startsWith("|"));
+  const cells = (r) => r.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+  if (tableLines.length > 2) {
+    const head = cells(tableLines[0]);
+    let best = null, bestScore = 0;
+    tableLines.slice(2).forEach((r) => {
+      const c = cells(r), t = c.join(" ").toLowerCase();
+      const sc = tok.codes.some((x) => t.includes(x)) ? 99 : tok.words.filter((w) => t.includes(w)).length;
+      if (sc > bestScore) { best = c; bestScore = sc; }
+    });
+    if (best && bestScore >= 2) return head.map((h, i) => [h, best[i] || ""]);
+  }
+  const text = lines.filter((l) => !l.startsWith("|"));
+  let best = "", bestScore = -1;
+  text.forEach((l) => { const sc = tok.words.filter((w) => l.toLowerCase().includes(w)).length; if (sc > bestScore) { best = l; bestScore = sc; } });
+  return best ? [["", best]] : [];
+}
+
+/* ---------- render ---------- */
+function sourceCard(s, tok, open) {
   const sup = s.status === "superseded";
-  const pageTxt = s.page_range[0] === s.page_range[1] ? `p.${s.page_range[0]}` : `p.${s.page_range[0]}–${s.page_range[1]}`;
+  const pages = s.page_range[0] === s.page_range[1] ? `p.${s.page_range[0]}` : `p.${s.page_range[0]}–${s.page_range[1]}`;
   return `
-  <div class="card src ${sup ? "superseded" : ""}">
-    <div><span class="src-title">${esc(s.doc_no)}</span> Rev ${esc(s.revision)}
-      <span class="badge ${sup ? "superseded" : "current"}">${sup ? "SUPERSEDED" : "CURRENT"}</span>
-      ${s.cited ? '<span class="badge used">used in answer</span>' : ""}</div>
-    <div class="ref">${esc(s.title)}<br>Section ${esc(s.section)} · ${pageTxt} · effective ${esc(s.effective_date)}</div>
-    ${sup ? '<div class="banner superseded">Superseded revision. Do not use it for current work.</div>' : ""}
-    <details><summary>Show the exact text</summary><div class="excerpt">${renderExcerpt(s.text)}</div></details>
-    <div class="actions"><a class="btn" href="${esc(s.pdf_url)}" target="_blank" rel="noopener">Open PDF at page ${s.page}</a></div>
-  </div>`;
+  <article class="card src ${sup ? "superseded" : ""}" data-p="${esc(prefixOf(s.doc_no))}">
+    <div class="src-top">
+      <span class="src-doc">${esc(s.doc_no)} · Rev ${esc(s.revision)}</span>
+      <span class="badge ${sup ? "superseded" : "current"}">${sup ? "Superseded" : "Current"}</span>
+      ${s.cited ? '<span class="badge used">Used in answer</span>' : ""}
+    </div>
+    <div class="src-ref">${esc(s.title)}<br>Section ${esc(s.section)} · ${pages} · effective ${esc(s.effective_date)}</div>
+    ${sup ? `<div class="banner superseded">${ICON.warn}<div>Superseded revision. Do not use it for current work.</div></div>` : ""}
+    <details class="excerpt-wrap" ${open ? "open" : ""}>
+      <summary>Exact text from the document</summary>
+      <div class="excerpt">${renderExcerpt(s.text, tok)}</div>
+    </details>
+    <div class="actions"><a class="btn ghost" href="${esc(s.pdf_url)}" target="_blank" rel="noopener">${ICON.pdf}Open PDF at page ${s.page}</a></div>
+  </article>`;
+}
+
+function questionHeader(q) {
+  return `<div class="card-head"><h2>Your question</h2><button class="btn ghost" type="button" id="back">${ICON.back}New question</button></div>
+          <p class="question">${esc(q)}</p>`;
 }
 
 function render(r) {
-  let html = "";
+  const tok = questionTokens(r.question);
+  let html = `<div class="card">${questionHeader(r.question)}</div>`;
+
   if (r.mode === "not_found") {
-    html += `<div class="card notfound"><h2>Not found in the plant documents</h2>
+    html += `<div class="card notfound"><div class="nf-icon">${ICON.search}</div>
+      <h3>Not found in the plant documents</h3>
       <p>I couldn't find this in the SOPs and manuals I have, so I won't guess.</p>
       ${r.notice ? `<p><strong>${esc(r.notice)}</strong></p>` : ""}`;
     if (r.closest.length) {
-      html += "<p class='meta'>Closest documents (they may not answer this):</p>" +
-        r.closest.map((c) => `<div class="actions"><a class="btn alt" href="${esc(c.pdf_url)}" target="_blank" rel="noopener">${esc(c.doc_no)} Rev ${esc(c.revision)}: ${esc(c.title)}</a></div>`).join("");
+      html += `<p class="meta">Closest documents (they may not answer this):</p><div class="actions">` +
+        r.closest.map((c) => `<a class="btn ghost" href="${esc(c.pdf_url)}" target="_blank" rel="noopener">${ICON.pdf}${esc(c.doc_no)} Rev ${esc(c.revision)}</a>`).join("") + "</div>";
     }
     html += `<p class="meta">${r.latency_ms} ms</p></div>`;
-    resultEl.innerHTML = html;
-    return;
+    return html;
   }
 
-  html += `<div class="card"><h2>Answer</h2>`;
-  if (r.safety_flag) html += `<div class="banner safety">⚠ Safety-critical. Confirm against the SOP page below before you act.</div>`;
+  html += `<div class="card"><div class="card-head"><h2>Answer</h2>
+      ${r.mode === "llm" ? `<button class="btn ghost" type="button" id="copy">${ICON.copy}Copy</button>` : ""}</div>`;
+  if (r.safety_flag) html += `<div class="banner safety">${ICON.warn}<div>Safety-critical. Confirm against the SOP page below before you act.</div></div>`;
   if (r.mode === "retrieval_only") {
-    html += `<div class="banner info">${esc(r.notice)}</div>`;
-  } else {
-    html += `<div class="answer" style="margin-top:12px">${esc(r.answer)}</div>`;
-  }
-  (r.revision_notes || []).forEach((n) => { html += `<div class="banner info">${esc(n)}</div>`; });
+    const top = r.sources.find((s) => s.cited) || r.sources[0];
+    const pairs = top ? bestMatch(top, tok) : [];
+    if (pairs.length) {
+      html += `<div class="match"><div class="match-label">Best match · ${esc(top.doc_no)} Rev ${esc(top.revision)}, section ${esc(top.section.split(".")[0])}, p.${top.page}</div><dl>` +
+        pairs.map(([k, v]) => (k ? `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>` : `<dd class="wide">${esc(v)}</dd>`)).join("") + "</dl></div>";
+    }
+    html += `<div class="banner info">${ICON.info}<div>${esc(r.notice)}</div></div>`;
+  } else html += `<div class="answer" id="answer-text">${formatAnswer(r.answer)}</div>`;
+  (r.revision_notes || []).forEach((n) => { html += `<div class="banner info">${ICON.info}<div>${esc(n)}</div></div>`; });
   html += `<p class="meta">${r.latency_ms} ms</p></div>`;
 
   const used = r.sources.filter((s) => s.cited), other = r.sources.filter((s) => !s.cited);
-  html += "<h3>Source</h3>" + used.map(sourceCard).join("");
+  html += `<h3 class="sec-title">Source</h3>` + used.map((s, i) => sourceCard(s, tok, i === 0)).join("");
   if (other.length) {
-    html += `<details style="margin-top:10px"><summary>Other matching sections (${other.length})</summary>${other.map(sourceCard).join("")}</details>`;
+    html += `<details class="others"><summary>Other matching sections (${other.length})</summary>${other.map((s) => sourceCard(s, tok, false)).join("")}</details>`;
   }
-  resultEl.innerHTML = html;
+  return html;
 }
 
-function showLoading() {
+function show(html) {
+  welcomeEl.hidden = true;
+  resultEl.innerHTML = html;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  const back = $("back"); if (back) back.onclick = reset;
+  const copy = $("copy");
+  if (copy) copy.onclick = async () => {
+    const text = $("answer-text").innerText;
+    try { await navigator.clipboard.writeText(text); }
+    catch { const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand("copy"); } catch { /* ignore */ } t.remove(); }
+    copy.lastChild.textContent = "Copied";
+    setTimeout(() => (copy.lastChild.textContent = "Copy"), 1500);
+  };
+  const retry = $("retry"); if (retry) retry.onclick = () => ask(lastQuestion);
+}
+
+function reset() {
+  clearInterval(timer);
+  resultEl.innerHTML = ""; welcomeEl.hidden = false; qEl.value = ""; autosize(); qEl.focus();
+  window.scrollTo({ top: 0 });
+}
+
+function showLoading(q) {
   const start = Date.now();
   const paint = () => {
     const s = Math.floor((Date.now() - start) / 1000);
-    const extra = s >= 6 ? " The local AI can take up to 20 seconds on the first question." : "";
-    resultEl.innerHTML = `<div class="card loading"><div class="spin"></div><div>Searching the documents… ${s}s${extra}</div></div>`;
+    const extra = s >= 6 ? " The local AI can take up to 20 seconds, especially on the first question." : "";
+    show(`<div class="card">${questionHeader(q)}</div>
+      <div class="card loading" aria-busy="true"><h2>Searching the documents</h2>
+        <div class="line w1"></div><div class="line w2"></div><div class="line w3"></div>
+        <p class="msg">Working… ${s}s${extra}</p></div>`);
   };
-  paint();
-  timer = setInterval(paint, 1000);
+  paint(); timer = setInterval(paint, 1000);
+}
+
+/* ---------- ask ---------- */
+function remember(q) {
+  const list = [q, ...store.get("recent", []).filter((x) => x !== q)].slice(0, 5);
+  store.set("recent", list); drawRecent();
 }
 
 async function ask(question) {
   question = question.trim();
   if (question.length < 2) return;
-  $("ask").disabled = true;
-  showLoading();
+  lastQuestion = question; qEl.value = ""; autosize(); qEl.blur();
+  askBtn.disabled = true;
+  showLoading(question);
   try {
     const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }) });
     clearInterval(timer);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `Server error (${res.status})`);
-    }
-    render(await res.json());
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `Server error (${res.status})`); }
+    const data = await res.json();
+    remember(question);
+    show(render(data));
   } catch (e) {
     clearInterval(timer);
     const offline = e instanceof TypeError;
-    resultEl.innerHTML = `<div class="card error"><h2>${offline ? "Can't reach the copilot" : "Something went wrong"}</h2>
-      <p>${offline ? "Check that you are on the plant Wi-Fi and try again." : esc(e.message)}</p></div>`;
-  } finally {
-    $("ask").disabled = false;
-  }
+    show(`<div class="card">${questionHeader(question)}</div>
+      <div class="card error"><h3>${offline ? "Can't reach the copilot" : "Something went wrong"}</h3>
+      <p>${offline ? "Check that you are on the plant Wi-Fi, then try again." : esc(e.message)}</p>
+      <div class="actions"><button class="btn" type="button" id="retry">${ICON.retry}Try again</button></div></div>`);
+  } finally { askBtn.disabled = false; }
+}
+
+/* ---------- welcome screen ---------- */
+function chip(text, target) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "chip"; b.innerHTML = ICON.chat + "<span></span>"; b.lastChild.textContent = text;
+  b.onclick = () => ask(text); target.appendChild(b);
+}
+function drawRecent() {
+  const list = store.get("recent", []);
+  $("recent-wrap").hidden = !list.length;
+  $("recent").innerHTML = ""; $("recent").classList.add("inline");
+  list.forEach((q) => chip(q.length > 44 ? q.slice(0, 42) + "…" : q, $("recent")));
+  [...$("recent").children].forEach((b, i) => (b.onclick = () => ask(list[i])));
 }
 
 async function loadStatus() {
   const el = $("status");
+  const set = (text, cls) => { el.textContent = text; el.className = "pill " + cls; };
   try {
     const h = await (await fetch("/api/health")).json();
-    if (!h.index_loaded) { el.textContent = "index missing"; el.className = "status bad"; return; }
-    if (h.llm.reachable && h.llm.model_ready) { el.textContent = "ready"; el.className = "status ok"; }
-    else { el.textContent = "AI offline: search only"; el.className = "status warn"; }
+    if (!h.index_loaded) set("index missing", "bad");
+    else if (h.llm.reachable && h.llm.model_ready) set("Ready", "ok");
+    else { set("Search only", "warn"); el.title = "The AI model is not running, so answers show the matching document sections."; }
     const d = await (await fetch("/api/documents")).json();
-    $("docs").textContent = d.documents.filter((x) => x.status === "current").length + " current documents indexed";
-  } catch { el.textContent = "offline"; el.className = "status bad"; }
+    const by = {};
+    d.documents.forEach((x) => (by[x.doc_no] = by[x.doc_no] || []).push(x));
+    $("docs").innerHTML = Object.values(by).map((revs) => {
+      revs.sort((a, b) => b.revision - a.revision);
+      const t = revs[0];
+      const line = revs.map((r) => `Rev ${esc(r.revision)} ${r.status === "current" ? "(current)" : "(superseded)"}`).join(" · ");
+      return `<li data-p="${esc(prefixOf(t.doc_no))}"><div class="t">${esc(t.title)}</div><div class="m">${esc(t.doc_no)} · ${line}</div></li>`;
+    }).join("");
+  } catch { set("offline", "bad"); }
 }
 
-$("form").addEventListener("submit", (e) => { e.preventDefault(); ask($("q").value); });
-$("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask($("q").value); } });
-SAMPLES.forEach((s) => {
-  const b = document.createElement("button");
-  b.type = "button"; b.className = "chip"; b.textContent = s; b.title = s;
-  b.addEventListener("click", () => { $("q").value = s; ask(s); });
-  $("chips").appendChild(b);
+/* ---------- composer + theme ---------- */
+function autosize() {
+  qEl.style.height = "auto";
+  qEl.style.height = Math.min(qEl.scrollHeight, 140) + "px";
+  qEl.style.overflowY = qEl.scrollHeight > 140 ? "auto" : "hidden";
+}
+qEl.addEventListener("input", autosize);
+qEl.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(qEl.value); } });
+$("form").addEventListener("submit", (e) => { e.preventDefault(); ask(qEl.value); });
+document.querySelector(".brand").addEventListener("click", reset);
+
+$("theme").addEventListener("click", () => {
+  const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const next = cur === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("theme", next); } catch { /* ignore */ }
 });
+
+SAMPLES.forEach((s) => chip(s, $("chips")));
+drawRecent();
 loadStatus();

@@ -1,0 +1,12 @@
+{
+  "name": "SOP Copilot",
+  "short_name": "SOP Copilot",
+  "description": "Answers from the plant's SOPs and manuals",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f5f8",
+  "theme_color": "#0b5cad",
+  "icons": [
+    { "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

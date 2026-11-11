@@ -57,6 +57,16 @@ def wants_old_revisions(q: str) -> bool:
     return bool(OLD_REV_RE.search(q))
 
 
+def load_embedder():
+    """Use the locally cached embedding model first. Without this, a laptop with no internet (a plant
+    Wi-Fi often has none) hangs at startup retrying huggingface.co even though the model is on disk."""
+    from sentence_transformers import SentenceTransformer
+    try:
+        return SentenceTransformer(config.EMBED_MODEL, local_files_only=True)
+    except Exception:  # not downloaded yet: fetch it (needs internet, first run only)
+        return SentenceTransformer(config.EMBED_MODEL)
+
+
 @dataclass
 class Hit:
     chunk: dict
@@ -105,8 +115,7 @@ class Retriever:
     @property
     def model(self):
         if self._model is None:
-            from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(config.EMBED_MODEL)
+            self._model = load_embedder()
         return self._model
 
     def embed_query(self, q: str) -> np.ndarray:
