@@ -67,13 +67,21 @@ class Hit:
 
 
 class Retriever:
-    def __init__(self):
-        self.chunks = json.loads((config.INDEX_DIR / "chunks.json").read_text(encoding="utf-8"))
-        self.emb = np.load(config.INDEX_DIR / "embeddings.npy")
+    def __init__(self, chunks: list[dict] | None = None, model=None):
+        """Normally loads the saved index. The eval script passes its own chunks (and the already
+        loaded embedding model) to compare chunking strategies."""
+        self._model = model
+        if chunks is None:
+            self.chunks = json.loads((config.INDEX_DIR / "chunks.json").read_text(encoding="utf-8"))
+            self.emb = np.load(config.INDEX_DIR / "embeddings.npy")
+        else:
+            self.chunks = chunks
+            self.emb = np.asarray(
+                self.model.encode([c["text_with_prefix"] for c in chunks], normalize_embeddings=True), dtype=np.float32
+            )
         self.tokens = [tokenize(c["text_with_prefix"]) for c in self.chunks]
         self.known_codes = self._learn_codes()
         self.bm25 = BM25Okapi(self.tokens)
-        self._model = None
 
     def _learn_codes(self) -> set[str]:
         """Every code that literally appears in the documents, plus ranges like 'CNC-04 to CNC-09'."""

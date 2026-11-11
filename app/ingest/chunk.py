@@ -118,7 +118,7 @@ def fixed_size_chunks(parsed_pdf_text: dict[str, str], size: int = 500, overlap:
             if piece:
                 out.append({
                     "chunk_id": f"{key}-fx{i}",
-                    "doc_no": meta["doc_no"], "revision": meta["revision"],
+                    "doc_no": meta["doc_no"], "revision": meta["revision"], "status": meta["status"],
                     "doc_title": meta["title"], "effective_date": meta["effective_date"],
                     "file": meta["file"], "section_number": "", "section_title": "",
                     "page_start": 0, "page_end": 0, "has_table": False, "has_safety_terms": False,
