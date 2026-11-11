@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SOP Copilot</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>SOP Copilot</h1>
+      <p class="sub">Answers from the plant's SOPs and manuals</p>
+    </div>
+    <span id="status" class="status" title="System status">checking…</span>
+  </header>
+
+  <main>
+    <form id="form" autocomplete="off">
+      <label for="q" class="sr">Your question</label>
+      <textarea id="q" rows="2" maxlength="500" placeholder="e.g. AL-104, or: who can remove a lockout lock?" enterkeyhint="send"></textarea>
+      <button id="ask" type="submit">Ask</button>
+    </form>
+
+    <div class="chips" id="chips" aria-label="Sample questions"></div>
+
+    <section id="result" aria-live="polite"></section>
+  </main>
+
+  <footer>
+    Information only. It does not replace the approvals your SOPs require.<br>
+    <span id="docs"></span>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
