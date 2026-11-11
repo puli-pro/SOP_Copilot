@@ -24,6 +24,7 @@ class Source(BaseModel):
     file: str
     pdf_url: str
     cited: bool
+    also: bool = False  # a safety section the model did not cite but the supervisor should still read
     score: float
 
 

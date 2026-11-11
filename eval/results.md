@@ -1,6 +1,6 @@
 # Evaluation results
 
-Run: 2026-11-11 16:48 | embedding model `BAAI/bge-small-en-v1.5` | LLM `llama3.1:8b` (NOT installed, so answer-level metrics were not run) | 16 answerable + 6 unanswerable questions over 7 pages (a sanity check, not a benchmark).
+Run: 2026-11-11 22:27 | embedding model `BAAI/bge-small-en-v1.5` | LLM `qwen2.5:3b` (used) | 16 answerable + 6 unanswerable questions over 7 pages (a sanity check, not a benchmark).
 
 ## A. Retrieval: structure-aware chunks vs fixed-size baseline (no LLM involved)
 
@@ -48,6 +48,36 @@ Unanswerable questions, before the LLM:
 
 ## B. Full pipeline (retrieve, gate, LLM, citation check)
 
-Not run: the Ollama model `llama3.1:8b` is not installed on this machine yet (`ollama pull llama3.1:8b`, then rerun `python -m eval.run_eval`).
+| Metric | Result |
+|---|---|
+| Key-fact accuracy (answerable) | 14/16 (88%) |
+| Citation accuracy (a cited source contains the evidence) | 15/16 (94%) |
+| False-accept rate (answered an unanswerable question) | 0/6 (0%) |
+| False-reject rate (refused an answerable question) | 0/16 (0%) |
+| Superseded-revision leak (cited a Rev 03 source) | 0/15 |
+| Latency p50 / p95 (this laptop) | 2541 ms / 3802 ms |
 
-Search-only latency for reference (retrieval + gate, no LLM): p50 179 ms, p95 202 ms.
+| ID | Mode | Result |
+|---|---|---|
+| S1 | llm | fact ok, cite ok |
+| S2 | llm | fact ok, cite ok |
+| S3 | llm | FACT MISSING, CITE WRONG |
+| S4 | llm | fact ok, cite ok |
+| S5 | llm | fact ok, cite ok |
+| X1 | llm | fact ok, cite ok |
+| X2 | llm | FACT MISSING, cite ok |
+| X3 | llm | fact ok, cite ok |
+| X4 | llm | fact ok, cite ok |
+| X5 | llm | fact ok, cite ok |
+| R1 | llm | fact ok, cite ok |
+| R2 | llm | fact ok, cite ok |
+| R3 | llm | fact ok, cite ok |
+| R4 | llm | fact ok, cite ok |
+| R5 | llm | fact ok, cite ok |
+| R6 | llm | fact ok, cite ok |
+| N1 | not_found | refused (correct) |
+| N2 | not_found | refused (correct) |
+| N3 | not_found | refused (correct) |
+| N4 | not_found | refused (correct) |
+| N5 | not_found | refused (correct) |
+| N6 | not_found | refused (correct) |

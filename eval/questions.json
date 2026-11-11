@@ -6,7 +6,7 @@
   {"id": "S3", "source": "sample", "question": "Who is allowed to remove a lockout lock from a machine?",
    "answerable": true, "evidence": ["removes only their own lock", "Production Manager and the Safety Officer"], "must_include": ["own lock", "production manager", "safety officer"], "expected_doc": "SAF-SOP-003", "notes": "needs two sections (normal rule + owner-absent exception)"},
   {"id": "S4", "source": "sample", "question": "What is the outer diameter tolerance for the BH-220 bearing housing?",
-   "answerable": true, "evidence": ["+/- 0.050"], "must_include": ["0.05"], "expected_doc": "QC-SOP-014", "expected_revision": "04", "notes": "right row of a table"},
+   "answerable": true, "evidence": ["+/- 0.050"], "must_include": ["0.050"], "expected_doc": "QC-SOP-014", "expected_revision": "04", "notes": "right row of a table; trailing zero must survive"},
   {"id": "S5", "source": "sample", "question": "How often should spindle runout be checked, and who does it?",
    "answerable": true, "evidence": ["Check spindle runout; inspect hydraulic hoses"], "must_include": ["monthly", "technician"], "expected_doc": "MNT-MAN-CNC-02", "notes": "section 3 also mentions runout (wrong section)"},
 
@@ -15,7 +15,7 @@
   {"id": "X2", "source": "extra", "question": "al305 on CNC-06",
    "answerable": true, "evidence": ["Stop cycle. Check tool wear and cutting parameters"], "must_include": ["spindle overload"], "expected_doc": "MNT-MAN-CNC-02", "notes": "no hyphen; CNC-06 only appears as part of the range CNC-04 to CNC-09"},
   {"id": "X3", "source": "extra", "question": "bh220 od",
-   "answerable": true, "evidence": ["+/- 0.050"], "must_include": ["0.05"], "expected_doc": "QC-SOP-014", "expected_revision": "04", "notes": "short query with abbreviation"},
+   "answerable": true, "evidence": ["+/- 0.050"], "must_include": ["0.050"], "expected_doc": "QC-SOP-014", "expected_revision": "04", "notes": "short query with abbreviation"},
   {"id": "X4", "source": "extra", "question": "What is the torque for the chuck mounting bolts?",
    "answerable": true, "evidence": ["110 Nm"], "must_include": ["110"], "expected_doc": "MNT-MAN-CNC-02", "notes": "exact value"},
   {"id": "X5", "source": "extra", "question": "What oil is used for the yearly hydraulic oil change?",

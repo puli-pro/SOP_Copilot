@@ -153,6 +153,11 @@ function render(r) {
 
   html += `<div class="card"><div class="card-head"><h2>Answer</h2></div>`;
   if (r.safety_flag) html += `<div class="banner safety">${ICON.warn}<div>Safety-critical. Confirm against the SOP page below before you act.</div></div>`;
+  const alsoSrc = r.sources.filter((s) => s.also);
+  if (alsoSrc.length) {
+    html += `<div class="banner safety">${ICON.warn}<div>This answer may not cover everything. Also read before you act:
+      <div class="cites">${alsoSrc.map((s) => `<a class="cite" href="#src-${s.n}" data-src="${s.n}"><i></i>§${esc(s.section)} · p.${s.page}</a>`).join("")}</div></div></div>`;
+  }
   if (r.mode === "retrieval_only") {
     const top = r.sources.find((s) => s.cited) || r.sources[0];
     const pairs = top ? bestMatch(top, tok) : [];
@@ -175,8 +180,11 @@ function render(r) {
       <button class="act" type="button" data-fb="0" aria-label="This answer was not helpful">${ICON.down}<span>Not helpful</span></button>
       <span class="thanks" id="thanks"></span><span class="ms">${r.latency_ms} ms</span></div></div>`;
 
-  const used = r.sources.filter((s) => s.cited), other = r.sources.filter((s) => !s.cited);
+  const used = r.sources.filter((s) => s.cited), other = r.sources.filter((s) => !s.cited && !s.also);
   let evidence = `<h3 class="sec-title">Source</h3>` + used.map((s, i) => sourceCard(s, tok, i === 0)).join("");
+  if (alsoSrc.length) {
+    evidence += `<h3 class="sec-title">Also read before acting</h3>` + alsoSrc.map((s) => sourceCard(s, tok, true)).join("");
+  }
   if (other.length) {
     evidence += `<details class="others"><summary>Other matching sections (${other.length})</summary>${other.map((s) => sourceCard(s, tok, false)).join("")}</details>`;
   }

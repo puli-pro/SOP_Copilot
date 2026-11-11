@@ -1,6 +1,8 @@
 """FastAPI app.  Run:  uvicorn app.main:app --host 0.0.0.0 --port 8000"""
 import json
 import logging
+import threading
+import time
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Request
@@ -26,6 +28,17 @@ def warm_up() -> None:
         log.info("Index loaded: %d chunks", len(retr.chunks))
     except FileNotFoundError:
         log.error("Index not found. Run: python -m app.ingest.build_index")
+    # Load the LLM into memory in the background so the first real question is not a 90-second wait.
+    threading.Thread(target=_warm_llm, daemon=True).start()
+
+
+def _warm_llm() -> None:
+    try:
+        t0 = time.time()
+        llm.generate_json("Reply with JSON only.", '{"ok": true}')
+        log.info("LLM warmed up in %.1fs", time.time() - t0)
+    except Exception as e:  # noqa: BLE001 - the app also works without the model
+        log.info("LLM warm-up skipped: %s", e)
 
 
 @app.middleware("http")

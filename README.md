@@ -4,7 +4,7 @@ A mobile-friendly question-answering app for shop-floor supervisors. It answers 
 manuals (4 PDFs in `Files/`), shows the exact source (document, **revision**, section, page, text), says so
 when the answer is not in the documents, and always prefers the **current** revision.
 
-Stack: FastAPI, PyMuPDF, `bge-small-en-v1.5` embeddings, BM25 + vector search fused with RRF, Ollama (`llama3.1:8b`), plain HTML/JS UI.
+Stack: FastAPI, PyMuPDF, `bge-small-en-v1.5` embeddings, BM25 + vector search fused with RRF, Ollama (`qwen2.5:3b`, a 1.9 GB model that runs well on a 6 GB laptop GPU), plain HTML/JS UI.
 Why these choices, and what I left out: see [FINAL_PLAN.md](FINAL_PLAN.md) and [THINKING.md](THINKING.md).
 
 ## Setup (Windows, Python 3.11)
@@ -13,7 +13,7 @@ Why these choices, and what I left out: see [FINAL_PLAN.md](FINAL_PLAN.md) and [
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-ollama pull llama3.1:8b          # about 5 GB; use qwen2.5:3b on a weak laptop (set OLLAMA_MODEL)
+ollama pull qwen2.5:3b           # about 1.9 GB; set OLLAMA_MODEL in .env to try a bigger one (llama3.1:8b, qwen2.5:7b)
 python -m app.ingest.build_index # parses the PDFs and builds the index (first run downloads a 130 MB embedding model)
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```

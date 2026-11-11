@@ -29,7 +29,7 @@ def generate_json(system: str, user: str) -> dict:
         "stream": False,
         "format": "json",
         "options": {"temperature": 0, "num_ctx": 4096},
-        "keep_alive": "30m",
+        "keep_alive": "2h",
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
     }
     try:
