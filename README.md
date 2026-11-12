@@ -15,7 +15,11 @@ Why these choices, and what I left out: see [FINAL_PLAN.md](FINAL_PLAN.md) and [
 
 ![Thinking indicator while the AI works](screenshots/desktop-2-loading.png)
 
-![Answer with source table, highlighted row, revision badge and PDF link](screenshots/desktop-3-answer.png)
+![Answer with the matching row copied from the document, source table, revision badge and "Open PDF at page 2"](screenshots/desktop-3-answer.png)
+
+The app also lists the other sections it considered, collapsed under "Other matching sections", each with its own page link:
+
+![Other matching sections the app considered](screenshots/desktop-4-other-sections.png)
 
 **Phone**, opened over the same Wi-Fi at `http://<laptop-ip>:8000` (a real phone, not an emulator). Same question, same answer, with the exact table row highlighted and a link to PDF page 2:
 
