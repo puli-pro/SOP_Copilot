@@ -81,5 +81,5 @@ BiztelAI Technologies
 | How to set up and run, phone access, my 5 questions with the app's answers | [README.md](README.md) |
 | Sample questions, my own questions, evaluation and results | [`eval/`](eval/), [`Files/Sample_Questions.pdf`](Files/Sample_Questions.pdf) |
 | Screenshots (desktop and phone) | [`screenshots/`](screenshots/) |
-| Architecture reasoning | [FINAL_PLAN.md](FINAL_PLAN.md), [ARCHITECTURE.md](ARCHITECTURE.md), [ARCHITECTURE_Plan.md](ARCHITECTURE_Plan.md) |
+| Architecture reasoning (chunking strategies compared, what I left out and why) | [FINAL_PLAN.md](FINAL_PLAN.md) |
 | Screen recording | Linked in the submission reply, not stored in the repository |

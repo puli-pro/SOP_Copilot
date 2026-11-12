@@ -1,6 +1,11 @@
 # My Plan: Shop-Floor SOP Copilot
 
-I started from [ARCHITECTURE.md](ARCHITECTURE.md) and revised it after reading the four PDFs and the sample questions in `Files/`. I used AI tools to help compare options; the decisions below are the ones I am going with and can explain.
+I started from two draft architectures: a heavy one (Docling parsing, BGE-M3 embeddings, a reranker, a Qdrant vector database, HyDE query expansion, Ragas evaluation) and a light one (PyMuPDF, a small embedding model, BM25 plus vectors, plain NumPy). I chose the light one and revised it after reading the four PDFs and the sample questions in `Files/`: seven pages and a 6 GB laptop do not need the heavy one (section 5 lists what I left out and why). I used AI tools to help compare options; the decisions below are the ones I am going with and can explain.
+
+> **Status: this is the plan I wrote before building.** What changed once the app was running (all measured in [eval/results.md](eval/results.md) and explained in [THINKING.md](THINKING.md)):
+> - The model is `qwen2.5:3b` (1.9 GB), not `llama3.1:8b`; it is fast on the laptop and `OLLAMA_MODEL` in `.env` can switch it.
+> - Testing showed a small model gives half answers on safety rules and slips on table lookups, so I added things the app enforces itself instead of trusting the model: required evidence (a rule and its exception always shown word for word), the matching table row copied from the PDF, a citation check on the answer text, a "second look" when the model refuses despite confident retrieval, and a fix for the PDF page link.
+> - The chunking, revision handling and not-found layers below were built as planned. The schedule in section 8 is the original plan, not a record of what happened.
 
 ## 1. What I found in the documents
 
