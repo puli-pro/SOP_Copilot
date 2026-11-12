@@ -208,3 +208,17 @@ Stretch, only if time remains: Dockerfile; safety callout if not chosen as the i
 | Step 3: AI challenge and reflection | After my journey draft |
 | Step 6: final reflection | After the build; trace log and eval results supply the material |
 | Public GitHub repo, screen recording | Not started; folder is not a git repo yet |
+
+## 10. If this had hundreds of SOPs: what I would add, and what would trigger it
+
+Two earlier drafts of this plan included heavier components. I left them out because seven digital pages do not need them, not because I did not consider them. This is the order I would add them in a real plant, and the signal that would justify each one.
+
+| Need | What I would add | What would trigger it | Why it is not in this app |
+|---|---|---|---|
+| Scanned or complex PDFs | OCR and a layout-aware parser (for example Docling, Surya or PaddleOCR) | Pages with no text layer, or tables the current parser mangles | All four PDFs have a clean text layer and ruled tables, and PyMuPDF reads them correctly |
+| Many more documents | A vector database with metadata filters by machine, area and document type, so search is narrowed before ranking | Thousands of chunks, or answers drifting to the wrong machine's SOP | About 30 chunks fit in plain NumPy, and a database adds a service to run |
+| Ranking quality | A cross-encoder reranker over the top 15 to 20 results; its score could also drive the "not found" decision | The right section is retrieved but not near the top | Evidence was in the top 4 for every test question |
+| Vocabulary gap between supervisors and SOPs | Query rewriting or hypothetical-answer search, only when retrieval is unsure (it costs an extra model call) | Short or slangy queries that miss the right section | Code matching and abbreviation expansion covered the test queries |
+| Which revision is in force | Document status read from the plant's QMS instead of inferred from revision numbers | A newer revision exists that is not in the folder | I only have the PDFs I was given (stated as a limit in THINKING.md) |
+| Knowing it works | A much larger labelled question set, evaluation tooling, and review of the thumbs-down feedback the app already stores | Any real rollout | 24 questions is a sanity check, not a benchmark (stated in the README) |
+| Real users | Login and role-based access, answers in the supervisor's language, and an offline mode | The customer's answers to the questions in THINKING.md | Out of scope for the assignment |
