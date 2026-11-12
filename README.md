@@ -111,23 +111,23 @@ The UI is plain HTML/CSS/JS in `app/static/` (no build step). Its patterns (thin
 python -m eval.run_eval      # writes eval/results.md and eval/results.json
 ```
 
-Full results are in [eval/results.md](eval/results.md) (24 questions over 7 pages: a sanity check, not a benchmark). With `qwen2.5:3b`:
+Full results are in [eval/results.md](eval/results.md) (26 questions over 7 pages: 20 answerable and 6 not; a sanity check, not a benchmark). With `qwen2.5:3b`:
 
 | Measure | Result |
 |---|---|
-| Retrieval: right evidence in the top 4 (mine vs a fixed 500-character chunking baseline) | 100% vs 81% |
-| Key facts visible on screen (the AI's answer + the table row and exception the app copies from the document) | 18/18 (100%) |
-| ...the AI's own sentence alone | 15/18 (83%) |
-| Answer cites a source that contains the evidence | 18/18 (100%) |
+| Retrieval: right evidence in the top 4 (mine vs a fixed 500-character chunking baseline) | 100% vs 80% |
+| Key facts visible on screen (the AI's answer + the table row and exception the app copies from the document) | 20/20 (100%) |
+| ...the AI's own sentence alone | 16/20 (80%) |
+| Answer cites a source that contains the evidence | 20/20 (100%) |
 | Answered an unanswerable question (false accept) | 0/6 |
-| Refused an answerable question (false reject) | 0/18 |
-| Answer used the superseded Rev 03 | 0/17 |
-| "Open PDF at page N" points to the right page (answers that sit on page 2) | 5/5 |
+| Refused an answerable question (false reject) | 0/20 |
+| Answer used the superseded Rev 03 | 0/19 |
+| "Open PDF at page N" points to the right page (answers that sit on page 2) | 6/6 |
 | Rule's exception shown next to the answer (enforced by the app) | 2/2 (the AI's own text had it 0/2) |
 | Exception blocks shown on unrelated questions | 0 |
-| Answer time, median / slowest | 2.5 s / 5.3 s plugged in (14 s median when the laptop ran on battery) |
+| Answer time, median / slowest | 2.2 s / 4.6 s plugged in (14 s median when the laptop ran on battery) |
 
-Read the first two rows together: the 100% includes blocks the app copies verbatim from the PDF, which is the point of the design, but the model on its own gets 15 of 18. In the last check its three misses were: the lockout question (it wrote "the Shift Supervisor and Production Manager with Safety Officer's approval are allowed to remove a lock", which mis-states the rule), the bare code `AL-305` (the action but not the meaning), and the `bh220 od` query (it dropped the trailing zero and added the wrong row). That is why the app shows the SOP's own words for the lockout rule and the matching table row for lookups, and keeps the AI's sentence for lockout collapsed and labelled "not verified". Results move by a question or two between runs even with temperature 0 and a fixed seed (earlier AI-only scores were 14 to 16 of 18), so treat them as a range, not a precise figure. I tuned the app while looking at these questions, so they are optimistic.
+Read the first two rows together: the 100% includes blocks the app copies verbatim from the PDF, which is the point of the design, but the model on its own gets 16 of 20. Misses I saw in the checks include: the lockout question (it once wrote "the Shift Supervisor and Production Manager with Safety Officer's approval are allowed to remove a lock", which mis-states the rule), the bare code `AL-305` (the action but not the meaning), and the `bh220 od` query (it dropped the trailing zero and added the wrong row). That is why the app shows the SOP's own words for the lockout rule and the matching table row for lookups, and keeps the AI's sentence for lockout collapsed and labelled "not verified". Results move by a question or two between runs even with temperature 0 and a fixed seed (earlier AI-only scores were 78% to 89%), so treat them as a range, not a precise figure. I tuned the app while looking at these questions, so they are optimistic. Two of the 26 questions (X6, X7) were added after a real bug: a question that named a real document number (QC-SOP-014) was wrongly refused as an "unknown code".
 
 ## My 5 questions and the app's answers
 

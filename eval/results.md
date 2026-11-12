@@ -1,18 +1,18 @@
 # Evaluation results
 
-Run: 2026-11-12 11:22 | embedding model `BAAI/bge-small-en-v1.5` | LLM `qwen2.5:3b` (used) | 18 answerable + 6 unanswerable questions over 7 pages (a sanity check, not a benchmark). Key facts are checked against what the supervisor sees: the AI's answer plus the blocks the app copies verbatim from the document (the matching table row and any required exception).
+Run: 2026-11-12 12:38 | embedding model `BAAI/bge-small-en-v1.5` | LLM `qwen2.5:3b` (used) | 20 answerable + 6 unanswerable questions over 7 pages (a sanity check, not a benchmark). Key facts are checked against what the supervisor sees: the AI's answer plus the blocks the app copies verbatim from the document (the matching table row and any required exception).
 
 ## A. Retrieval: structure-aware chunks vs fixed-size baseline (no LLM involved)
 
 | Metric | Structure-aware (mine) | Fixed 500-char baseline |
 |---|---|---|
-| Evidence hit@1 (all evidence in the top chunk) | 13/18 (72%) | 9/18 (50%) |
-| Evidence hit@4 (all evidence in the top 4) | 18/18 (100%) | 14/18 (78%) |
-| MRR (rank of first chunk with the key evidence) | 0.94 | 0.65 |
+| Evidence hit@1 (all evidence in the top chunk) | 15/20 (75%) | 10/20 (50%) |
+| Evidence hit@4 (all evidence in the top 4) | 20/20 (100%) | 16/20 (80%) |
+| MRR (rank of first chunk with the key evidence) | 0.95 | 0.65 |
 | Chunks in index | 28 | 27 |
 
-- **Superseded-revision leak (retrieval):** 0/17 questions that did not ask for an old revision retrieved a Rev 03 chunk.
-- **Gate and unknown-code check:** stopped 3/6 unanswerable questions before the LLM, and wrongly blocked 0/18 answerable ones.
+- **Superseded-revision leak (retrieval):** 0/19 questions that did not ask for an old revision retrieved a Rev 03 chunk.
+- **Gate and unknown-code check:** stopped 3/6 unanswerable questions before the LLM, and wrongly blocked 0/20 answerable ones.
 
 Per question (hit@1 / hit@4, structured | baseline):
 
@@ -28,6 +28,8 @@ Per question (hit@1 / hit@4, structured | baseline):
 | X3 | bh220 od | Y / Y (first rank 1) | Y / Y (first rank 1) |
 | X4 | What is the torque for the chuck mounting bolts? | Y / Y (first rank 1) | - / Y (first rank 3) |
 | X5 | What oil is used for the yearly hydraulic oil change? | Y / Y (first rank 1) | Y / Y (first rank 1) |
+| X6 | What is the outer diameter tolerance for the BH-220 component accordin | Y / Y (first rank 1) | Y / Y (first rank 1) |
+| X7 | In MNT-MAN-CNC-02, what is the coolant concentration? | Y / Y (first rank 1) | - / Y (first rank 3) |
 | R1 | How many samples do I need to inspect from a lot of 200 pieces? | Y / Y (first rank 1) | Y / Y (first rank 1) |
 | R2 | Where do I put rejected material? | Y / Y (first rank 1) | - / Y (first rank 3) |
 | R3 | What happens if the material test certificate is missing? | Y / Y (first rank 1) | - / - (first rank none) |
@@ -52,17 +54,17 @@ Unanswerable questions, before the LLM:
 
 | Metric | Result |
 |---|---|
-| Key facts visible on screen (AI answer + verbatim table row + required exception) | 18/18 (100%) |
-| ...for comparison: key facts in the AI's own sentence alone | 15/18 (83%) |
-| Citation accuracy (a cited source contains the evidence) | 18/18 (100%) |
+| Key facts visible on screen (AI answer + verbatim table row + required exception) | 20/20 (100%) |
+| ...for comparison: key facts in the AI's own sentence alone | 16/20 (80%) |
+| Citation accuracy (a cited source contains the evidence) | 20/20 (100%) |
 | False-accept rate (answered an unanswerable question) | 0/6 (0%) |
-| False-reject rate (refused an answerable question) | 0/18 (0%) |
-| Superseded-revision leak (cited a Rev 03 source) | 0/17 |
-| "Open PDF at page N" points to the right page (answers that sit on page 2) | 5/5 |
+| False-reject rate (refused an answerable question) | 0/20 (0%) |
+| Superseded-revision leak (cited a Rev 03 source) | 0/19 |
+| "Open PDF at page N" points to the right page (answers that sit on page 2) | 6/6 |
 | Required exception shown (safety rule + its exception, enforced by the app) | 2/2 |
 | ...for comparison: exception present in the AI's own answer text | 0/2 |
 | Exception blocks shown where not needed | 0 (none) |
-| Latency p50 / p95 (this laptop) | 2538 ms / 5251 ms |
+| Latency p50 / p95 (this laptop) | 2236 ms / 4643 ms |
 
 | ID | Mode | Result |
 |---|---|---|
@@ -76,6 +78,8 @@ Unanswerable questions, before the LLM:
 | X3 | llm | fact ok, cite ok |
 | X4 | llm | fact ok, cite ok |
 | X5 | llm | fact ok, cite ok |
+| X6 | llm | fact ok, cite ok |
+| X7 | llm | fact ok, cite ok |
 | R1 | llm | fact ok, cite ok |
 | R2 | llm | fact ok, cite ok |
 | R3 | llm | fact ok, cite ok |

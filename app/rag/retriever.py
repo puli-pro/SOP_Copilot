@@ -97,6 +97,13 @@ class Retriever:
         """Every code that literally appears in the documents, plus ranges like 'CNC-04 to CNC-09'."""
         codes: set[str] = set()
         for c in self.chunks:
+            # Document numbers (QC-SOP-014, MNT-MAN-CNC-02) live in the header, not the body text, so they must be
+            # added from the metadata: in full and in shortened forms ("sop-014", "cnc-02", "man-cnc-02").
+            parts = c["doc_no"].lower().split("-")
+            if len(parts) >= 2 and parts[-1].isdigit():
+                CODE_PREFIXES.add(parts[-2])
+                for start in range(len(parts) - 1):
+                    codes.add("-".join(parts[start:]))
             text = c["text"]
             for m in CODE_IN_DOC_RE.finditer(text):
                 CODE_PREFIXES.add(m.group(1).lower())

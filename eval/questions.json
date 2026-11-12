@@ -21,6 +21,11 @@
   {"id": "X5", "source": "extra", "question": "What oil is used for the yearly hydraulic oil change?",
    "answerable": true, "evidence": ["Replace hydraulic oil (ISO VG 46)"], "must_include": ["46"], "expected_doc": "MNT-MAN-CNC-02", "notes": "VG 46 (hydraulic) vs VG 68 (way lube)"},
 
+  {"id": "X6", "source": "extra", "question": "What is the outer diameter tolerance for the BH-220 component according to the latest revision of QC-SOP-014?",
+   "answerable": true, "expected_page": 2, "evidence": ["+/- 0.050"], "must_include": ["0.050"], "expected_doc": "QC-SOP-014", "expected_revision": "04", "notes": "names the document number (regression: a real document number was once refused as an unknown code)"},
+  {"id": "X7", "source": "extra", "question": "In MNT-MAN-CNC-02, what is the coolant concentration?",
+   "answerable": true, "evidence": ["6 - 8 %"], "must_include": ["6", "8"], "expected_doc": "MNT-MAN-CNC-02", "notes": "document number in the question"},
+
   {"id": "R1", "source": "own_candidate", "question": "How many samples do I need to inspect from a lot of 200 pieces?",
    "answerable": true, "evidence": ["91 - 500"], "must_include": ["13"], "expected_doc": "QC-SOP-014", "expected_revision": "04", "notes": "Rev 03 would say 5; must use Rev 04"},
   {"id": "R2", "source": "own_candidate", "question": "Where do I put rejected material?",

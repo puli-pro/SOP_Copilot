@@ -257,7 +257,9 @@ def ask(question: str) -> dict:
     # Layer 0: the question names a specific code (alarm, part, form, machine) that no document contains.
     unknown = retr.unknown_codes(info["normalised_query"])
     if unknown:
-        shown = ", ".join(c.upper() for c in unknown)
+        # show the whole code as typed ("QC-SOP-099"), not just the part the check matched ("SOP-099")
+        words = re.findall(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*", info["normalised_query"])
+        shown = ", ".join(next((w for w in words if c in w.lower()), c).upper() for c in unknown)
         resp.update(reason=f"unknown code: {shown} does not appear in any document",
                     closest=_closest(hits), notice=f"{shown} is not mentioned in the documents I have. " + _who_to_ask(hits))
         return finish()
