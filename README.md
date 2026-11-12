@@ -43,10 +43,13 @@ question → normalise ("al305" → "AL-305", "OD" → "outer diameter")
          → hybrid retrieval: BM25 + vectors, rank fusion, current revisions only (top 4)
            + linked documents (hose replacement pulls in the lockout SOP)
          → loose relevance gate (nothing resembles the question → "not found")
-         → LLM answers only from numbered excerpts, returns JSON {answerable, answer, citations}
-         → citation check (no valid citation → "not found")
+         → LLM answers only from numbered excerpts, returns JSON {answerable, answer, exceptions, citations}
+         → citation check (the answer text must really appear in the cited section; no valid citation → "not found")
+         → required evidence: a rule and its exception are always shown together, word for word
          → answer + source cards (revision badge, section, page, exact text, "Open PDF at page N")
 ```
+
+**Required evidence for safety rules (deterministic, not left to the model).** Some sections are the exception to a rule in another section: "5. Removing Locks" says each person removes only their own lock, and "6. Removal of a Lock When the Owner Is Absent" says what happens when the owner has left. A small model may quote only the rule. So at ingest the app detects exception sections from their headings and links each to the rule it qualifies (by the heading's topic words, within the same document and revision). At answer time, whenever either half is cited, **both halves are pulled into the model's context and shown verbatim in amber blocks under the answer**, whatever the model wrote. In the evaluation this showed the exception in 2/2 lockout questions, while the model's own answer text contained it in 0/2. Limit: it only recognises exceptions that are written as their own section with a telling heading ("When…", "If…", "Absent", "Emergency").
 
 **The improvement I added: revision awareness.** `QC-SOP-014` is supplied twice (Rev 03 from 2023 and Rev 04 from 2026)
 and they disagree (sample size, quarantine location, form, escalation, certificate rule). Each chunk carries its
@@ -69,9 +72,21 @@ The UI is plain HTML/CSS/JS in `app/static/` (no build step). Its patterns (thin
 python -m eval.run_eval      # writes eval/results.md and eval/results.json
 ```
 
-Current results are in [eval/results.md](eval/results.md). Retrieval (no LLM needed): evidence hit@4 100% vs 81% for a
-fixed-size baseline; no superseded chunk retrieved for current-revision questions. The answer-level part (key facts,
-citations, false-accept / false-reject, latency) runs only once the Ollama model is installed. 22 questions over 7 pages is a sanity check, not a benchmark.
+Full results are in [eval/results.md](eval/results.md) (24 questions over 7 pages: a sanity check, not a benchmark). With `qwen2.5:3b`:
+
+| Measure | Result |
+|---|---|
+| Retrieval: right evidence in the top 4 (mine vs a fixed 500-character chunking baseline) | 100% vs 81% |
+| Key facts correct in the answer | 16/18 (89%) |
+| Answer cites a source that contains the evidence | 18/18 (100%) |
+| Answered an unanswerable question (false accept) | 0/6 |
+| Refused an answerable question (false reject) | 0/18 |
+| Answer used the superseded Rev 03 | 0/17 |
+| Rule's exception shown next to the answer (enforced by the app) | 2/2 (the AI's own text had it 0/2) |
+| Exception blocks shown on unrelated questions | 0 |
+| Answer time, median / slowest | 2.5 s / 4 s on a good run, up to 22 s on a slow run (laptop speed varies) |
+
+The two key-fact misses are the bare alarm-code queries (`AL-305`, `al305 on CNC-06`): the model gives the action but not the meaning ("Spindle overload").
 
 ## My 5 questions and the app's answers
 
@@ -79,15 +94,17 @@ Sample questions are in `Files/Sample_Questions.pdf`. My own five, with one the 
 
 | # | Question | Why I chose it | App's answer |
 |---|---|---|---|
-| 1 | How many samples do I need to inspect from a lot of 200 pieces? | Rev 03 says 5, Rev 04 says 13 | _fill after running with the model_ |
-| 2 | How do I replace a hydraulic hose? | Needs two documents; must include lockout | _fill after running with the model_ |
-| 3 | Where do I put rejected material? | Rev 03 and Rev 04 differ | _fill after running with the model_ |
-| 4 | What happens if the material test certificate is missing? | Rule changed in Rev 04 | _fill after running with the model_ |
-| 5 | What is the maximum spindle speed of the TX-200? | Plausible but **not in the documents** | _fill after running with the model_ |
+| 1 | How many samples do I need to inspect from a lot of 200 pieces? | Rev 03 says 5, Rev 04 says 13 | "Samples to inspect: 13." Source: QC-SOP-014 **Rev 04** §4, p.1 (the current revision, not Rev 03's 5). |
+| 2 | How do I replace a hydraulic hose? | Needs two documents; must include lockout | The full 5-step procedure: isolate per SAF-SOP-003 and release stored hydraulic pressure, confirm the gauge reads zero, drip tray, fit the new hose, remove locks and check 3.5 - 4.0 MPa. Source: MNT-MAN-CNC-02 §7, p.2. |
+| 3 | Where do I put rejected material? | Rev 03 and Rev 04 differ | "Tagged with a RED tag and moved to Quarantine Cage Q1, Stores Bay 3. The cage is locked; the key is held by the Shift QC Supervisor." Source: QC-SOP-014 **Rev 04** §5, p.2 (Rev 03's Red Bin near Gate 2 is superseded). |
+| 4 | What happens if the material test certificate is missing? | Rule changed in Rev 04 | "The lot is put on HOLD and must not be inspected or accepted until the MTC is received." Source: QC-SOP-014 **Rev 04** §5, p.2. |
+| 5 | What is the maximum spindle speed of the TX-200? | Plausible but **not in the documents** | **Not found in the plant documents.** The app refuses to guess, suggests "Ask the maintenance engineer, or your shift lead", and offers the closest documents. |
 
 ## Known limits
 
 - Seven pages is not a real knowledge base; thresholds are tuned on a handful of questions.
-- Questions that are close to the documents but not covered (e.g. "overheating warning") are only caught by the LLM's refusal and the citation check, not by the gate. This is measured in the eval once the model is installed.
+- Questions that are close to the documents but not covered (e.g. "overheating warning") are caught by the LLM's refusal and the citation check, not by the gate; this held in all 6 test cases, but it depends on a small model behaving.
+- The AI's own short answer can still be incomplete (for the lockout question it states only the rule). That is why safety exceptions are enforced by the app and shown verbatim, not trusted to the model.
+- The 5 questions in the table above were picked by me from the eval's candidate set; the app's answers were produced by the running app.
 - English only. No login, no history, no offline cache.
 - Information only: it does not replace the approvals the SOPs require.
