@@ -31,6 +31,18 @@ The app also lists the other sections it considered, collapsed under "Other matc
   </tr>
 </table>
 
+### Final Demo Video
+
+The 2:44 recording demonstrates:
+
+- The AL-104 maintenance question, answer, and source-page reference.
+- The BH-220 outer-diameter tolerance from QC-SOP-014 Rev 04 (±0.050 mm).
+- An unanswerable maximum-spindle-speed question and the app's **Not Found** response.
+- The Lockout/Tagout rule that each authorised person removes only their own lock, plus the owner-absent exception requiring both the Production Manager and Safety Officer to authorise removal.
+- The same application accessed from a phone over the local Wi-Fi network.
+
+[Watch Final_Demo_Video.mp4](Final_Demo_Video.mp4) · [Watch on Google Drive](https://drive.google.com/file/d/1mmNGQSG6C15NXcAygfkw_-LQO1EEUMzt/view?usp=sharing).
+
 ## Setup (Windows, Python 3.11)
 
 ```bash

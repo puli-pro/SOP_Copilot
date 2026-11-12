@@ -183,11 +183,11 @@ My five questions (B7) will include one that hits the Rev 03 / Rev 04 conflict, 
 |---|---|---|
 | C1 | README: setup, run, phone access, my five questions with the app's actual answers, the results table | A stranger could run it from the README alone |
 | C2 | THINKING.md: the five required sections, including the final reflection (what next, what I am unsure about, questions for the customer, biggest challenge) | All five headings from the brief present |
-| C3 | Public GitHub repo, pushed, checked while logged out; no `.env` or index files committed | Repo opens in a private browser window |
-| C4 | Screen recording, 2–3 minutes: two sample questions, one unanswerable question, the app on my phone | Link opens for anyone with it |
-| C5 | Reply to BiztelAI with the repo link and recording link | Sent |
+| C3 | Public GitHub repo, pushed, checked while logged out; no `.env` or index files committed | Complete: public repository confirmed |
+| C4 | Screen recording, 2–3 minutes: two sample questions, one unanswerable question, the app on my phone | Verified complete (2:44): [local file](Final_Demo_Video.mp4); [Google Drive link](https://drive.google.com/file/d/1mmNGQSG6C15NXcAygfkw_-LQO1EEUMzt/view?usp=sharing) |
+| C5 | Reply to BiztelAI with the repo link and recording link | Complete: reply sent |
 
-Recording script: sample question 2 (AL-104, exact-code lookup and page 2 source), sample question 4 (BH-220, Rev 04 badge), one unanswerable question, then the same on my phone.
+The completed recording shows the AL-104 maintenance answer and source page, BH-220 outer-diameter tolerance from QC-SOP-014 Rev 04 (±0.050 mm), the unanswerable maximum-spindle-speed question and Not Found response, the Lockout/Tagout rule that each authorised person removes only their own lock plus the owner-absent authorisation exception, and the same app accessed from a phone over local Wi-Fi.
 
 Stretch, only if time remains: Dockerfile; safety callout if not chosen as the improvement.
 
@@ -198,16 +198,16 @@ Stretch, only if time remains: Dockerfile; safety callout if not chosen as the i
 | FastAPI + simple UI + RAG over the PDFs | Covered |
 | Source document shown | Covered (doc number, revision, section, page, snippet) |
 | Says so when the answer is not in the documents | Covered (LLM flag + citation check + gate) |
-| One improvement from the user journey | Candidates ready; depends on my journey |
+| One improvement from the user journey | Covered: revision awareness, including current-revision handling |
 | Runs on laptop, opened from phone on same Wi-Fi | Covered (bind `0.0.0.0`, firewall rule, hotspot fallback) |
-| Local LLM (bonus) | Covered, model still to be pulled |
+| Local LLM (bonus) | Covered: `qwen2.5:3b` run locally |
 | Docker (bonus) | Stretch only |
 | Test with the sample questions | Covered; all five are answerable, expected answers in section 1 |
 | 5 own questions with answers in README | Covered by the eval script |
-| Steps 1–2: understand the user, user journey | Step 1 drafted in THINKING.md; step 2 is mine to write without AI |
-| Step 3: AI challenge and reflection | After my journey draft |
-| Step 6: final reflection | After the build; trace log and eval results supply the material |
-| Public GitHub repo, screen recording | Not started; folder is not a git repo yet |
+| Steps 1–2: understand the user, user journey | Complete in THINKING.md, sections 1–2 |
+| Step 3: AI challenge and reflection | Complete in THINKING.md, section 3 |
+| Step 6: final reflection | Complete in THINKING.md, section 5 |
+| Public GitHub repo, screen recording | Public repository and submission reply are complete. The 2:44 recording is available locally at [Final_Demo_Video.mp4](Final_Demo_Video.mp4) and via [Google Drive](https://drive.google.com/file/d/1mmNGQSG6C15NXcAygfkw_-LQO1EEUMzt/view?usp=sharing). These current documentation edits still need to be pushed to update the public repository |
 
 ## 10. If this had hundreds of SOPs: what I would add, and what would trigger it
 

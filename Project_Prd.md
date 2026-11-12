@@ -82,4 +82,4 @@ BiztelAI Technologies
 | Sample questions, my own questions, evaluation and results | [`eval/`](eval/), [`Files/Sample_Questions.pdf`](Files/Sample_Questions.pdf) |
 | Screenshots (desktop and phone) | [`screenshots/`](screenshots/) |
 | Architecture reasoning (chunking strategies compared, what I left out and why) | [FINAL_PLAN.md](FINAL_PLAN.md) |
-| Screen recording | Linked in the submission reply, not stored in the repository |
+| Completed demonstration recording (AL-104 source page, BH-220 Rev 04 tolerance, spindle-speed Not Found response, own-lock rule and owner-absent authorisation exception, phone over local Wi-Fi) | [Local file](Final_Demo_Video.mp4); [Google Drive recording link](https://drive.google.com/file/d/1mmNGQSG6C15NXcAygfkw_-LQO1EEUMzt/view?usp=sharing) |
