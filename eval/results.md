@@ -1,18 +1,18 @@
 # Evaluation results
 
-Run: 2026-11-11 22:27 | embedding model `BAAI/bge-small-en-v1.5` | LLM `qwen2.5:3b` (used) | 16 answerable + 6 unanswerable questions over 7 pages (a sanity check, not a benchmark).
+Run: 2026-11-12 10:15 | embedding model `BAAI/bge-small-en-v1.5` | LLM `qwen2.5:3b` (used) | 18 answerable + 6 unanswerable questions over 7 pages (a sanity check, not a benchmark).
 
 ## A. Retrieval: structure-aware chunks vs fixed-size baseline (no LLM involved)
 
 | Metric | Structure-aware (mine) | Fixed 500-char baseline |
 |---|---|---|
-| Evidence hit@1 (all evidence in the top chunk) | 12/16 (75%) | 8/16 (50%) |
-| Evidence hit@4 (all evidence in the top 4) | 16/16 (100%) | 13/16 (81%) |
-| MRR (rank of first chunk with the key evidence) | 0.94 | 0.67 |
+| Evidence hit@1 (all evidence in the top chunk) | 13/18 (72%) | 9/18 (50%) |
+| Evidence hit@4 (all evidence in the top 4) | 18/18 (100%) | 14/18 (78%) |
+| MRR (rank of first chunk with the key evidence) | 0.94 | 0.65 |
 | Chunks in index | 28 | 27 |
 
-- **Superseded-revision leak (retrieval):** 0/15 questions that did not ask for an old revision retrieved a Rev 03 chunk.
-- **Gate and unknown-code check:** stopped 3/6 unanswerable questions before the LLM, and wrongly blocked 0/16 answerable ones.
+- **Superseded-revision leak (retrieval):** 0/17 questions that did not ask for an old revision retrieved a Rev 03 chunk.
+- **Gate and unknown-code check:** stopped 3/6 unanswerable questions before the LLM, and wrongly blocked 0/18 answerable ones.
 
 Per question (hit@1 / hit@4, structured | baseline):
 
@@ -34,6 +34,8 @@ Per question (hit@1 / hit@4, structured | baseline):
 | R4 | How many samples did the old procedure require? | Y / Y (first rank 1) | Y / Y (first rank 1) |
 | R5 | How do I replace a hydraulic hose? | - / Y (first rank 1) | - / - (first rank 2) |
 | R6 | Who holds the key to the quarantine cage? | - / Y (first rank 2) | Y / Y (first rank 1) |
+| L1 | Can a supervisor take off another person's lock? | - / Y (first rank 1) | - / - (first rank none) |
+| L2 | How do I apply my lock before maintenance? | Y / Y (first rank 1) | Y / Y (first rank 1) |
 
 Unanswerable questions, before the LLM:
 
@@ -50,21 +52,24 @@ Unanswerable questions, before the LLM:
 
 | Metric | Result |
 |---|---|
-| Key-fact accuracy (answerable) | 14/16 (88%) |
-| Citation accuracy (a cited source contains the evidence) | 15/16 (94%) |
+| Key-fact accuracy (answerable) | 16/18 (89%) |
+| Citation accuracy (a cited source contains the evidence) | 18/18 (100%) |
 | False-accept rate (answered an unanswerable question) | 0/6 (0%) |
-| False-reject rate (refused an answerable question) | 0/16 (0%) |
-| Superseded-revision leak (cited a Rev 03 source) | 0/15 |
-| Latency p50 / p95 (this laptop) | 2541 ms / 3802 ms |
+| False-reject rate (refused an answerable question) | 0/18 (0%) |
+| Superseded-revision leak (cited a Rev 03 source) | 0/17 |
+| Required exception shown (safety rule + its exception, enforced by the app) | 2/2 |
+| ...for comparison: exception present in the AI's own answer text | 0/2 |
+| Exception blocks shown where not needed | 0 (none) |
+| Latency p50 / p95 (this laptop) | 6025 ms / 14390 ms |
 
 | ID | Mode | Result |
 |---|---|---|
 | S1 | llm | fact ok, cite ok |
 | S2 | llm | fact ok, cite ok |
-| S3 | llm | FACT MISSING, CITE WRONG |
+| S3 | llm | fact ok, cite ok |
 | S4 | llm | fact ok, cite ok |
 | S5 | llm | fact ok, cite ok |
-| X1 | llm | fact ok, cite ok |
+| X1 | llm | FACT MISSING, cite ok |
 | X2 | llm | FACT MISSING, cite ok |
 | X3 | llm | fact ok, cite ok |
 | X4 | llm | fact ok, cite ok |
@@ -75,6 +80,8 @@ Unanswerable questions, before the LLM:
 | R4 | llm | fact ok, cite ok |
 | R5 | llm | fact ok, cite ok |
 | R6 | llm | fact ok, cite ok |
+| L1 | llm | fact ok, cite ok |
+| L2 | llm | fact ok, cite ok |
 | N1 | not_found | refused (correct) |
 | N2 | not_found | refused (correct) |
 | N3 | not_found | refused (correct) |

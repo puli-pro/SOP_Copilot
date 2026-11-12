@@ -136,12 +136,23 @@ def main():
     if llm_ready:
         ok_fact = ok_cite = false_accept = false_reject = 0
         leak_answer = 0
+        exc_needed = exc_shown = exc_in_model_answer = 0
+        spurious = []
         detail = []
         for q, resp in answers:
             if q["answerable"]:
-                text = norm(resp["answer"])
+                # What the supervisor sees = the AI answer + the required exception blocks (copied from the SOP).
+                required_text = " ".join(r["text"] for r in resp.get("required", []))
+                text = norm(resp["answer"] + " " + required_text)
+                if q.get("requires_exception"):
+                    exc_needed += 1
+                    exc_shown += has(required_text, q["requires_exception"])
+                    exc_in_model_answer += has(resp["answer"], q["requires_exception"])
+                elif resp.get("required"):
+                    spurious.append(q["id"])
                 fact = resp["mode"] == "llm" and all(norm(m) in text for m in q["must_include"])
-                cited = [s for s in resp["sources"] if s["cited"]]
+                # a source shown with the answer: cited by the AI, or required by the rule/exception link
+                cited = [s for s in resp["sources"] if s["cited"] or s.get("required")]
                 cite_ok = any(all(has(s["text"], e) for e in [ev]) for s in cited for ev in q["evidence"][:1])
                 if resp["mode"] != "llm":
                     false_reject += 1
@@ -154,7 +165,8 @@ def main():
                 false_accept += resp["mode"] == "llm"
                 detail.append({"id": q["id"], "mode": resp["mode"], "refused": resp["mode"] != "llm"})
         full = {"fact": ok_fact, "cite": ok_cite, "false_accept": false_accept, "false_reject": false_reject,
-                "leak": leak_answer, "detail": detail}
+                "leak": leak_answer, "exc_needed": exc_needed, "exc_shown": exc_shown,
+                "exc_in_model_answer": exc_in_model_answer, "spurious": spurious, "detail": detail}
 
     # ---------- write results ----------
     n_a, n_u = len(answerable), len(unanswerable)
@@ -193,6 +205,9 @@ def main():
         md.append(f"| False-accept rate (answered an unanswerable question) | {full['false_accept']}/{n_u} ({pct(full['false_accept'], n_u)}) |")
         md.append(f"| False-reject rate (refused an answerable question) | {full['false_reject']}/{n_a} ({pct(full['false_reject'], n_a)}) |")
         md.append(f"| Superseded-revision leak (cited a Rev 03 source) | {full['leak']}/{len(non_hist)} |")
+        md.append(f"| Required exception shown (safety rule + its exception, enforced by the app) | {full['exc_shown']}/{full['exc_needed']} |")
+        md.append(f"| ...for comparison: exception present in the AI's own answer text | {full['exc_in_model_answer']}/{full['exc_needed']} |")
+        md.append(f"| Exception blocks shown where not needed | {len(full['spurious'])} ({', '.join(full['spurious']) or 'none'}) |")
         md.append(f"| Latency p50 / p95 (this laptop) | {p50:.0f} ms / {p95:.0f} ms |")
         md.append("\n| ID | Mode | Result |\n|---|---|---|")
         for d in full["detail"]:

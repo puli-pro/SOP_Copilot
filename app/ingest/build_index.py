@@ -10,7 +10,7 @@ import time
 import numpy as np
 
 from app import config
-from app.ingest.chunk import chunk_document
+from app.ingest.chunk import chunk_document, link_exceptions
 from app.ingest.parse import parse_pdf
 
 
@@ -36,6 +36,12 @@ def load_and_chunk(verbose: bool = True):
             chunks.append(c)
         if verbose:
             print(f"  {d['doc_no']} Rev {d['revision']} ({status}): {len([c for c in chunks if c['file'] == d['file']])} chunks")
+    pairs = link_exceptions(chunks)
+    if verbose:
+        for c in chunks:
+            if c["qualified_by"]:
+                print(f"  exception link: {c['chunk_id']} ({c['section_title']}) <- {', '.join(c['qualified_by'])}")
+        print(f"  {pairs} rule/exception pair(s) linked")
     if verbose and skipped:
         print("  skipped (no 'Document No.' header):", ", ".join(skipped))
     return parsed_docs, chunks, skipped

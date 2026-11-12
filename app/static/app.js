@@ -114,6 +114,7 @@ function sourceCard(s, tok, open) {
       <span class="src-doc">${esc(s.doc_no)} · Rev ${esc(s.revision)}</span>
       <span class="badge ${sup ? "superseded" : "current"}">${sup ? "Superseded" : "Current"}</span>
       ${s.cited ? '<span class="badge used">Used in answer</span>' : ""}
+      ${s.required ? '<span class="badge req">Required</span>' : ""}
     </div>
     <div class="src-ref">${esc(s.title)}<br>Section ${esc(s.section)} · ${pages} · effective ${esc(s.effective_date)}</div>
     ${sup ? `<div class="banner superseded">${ICON.warn}<div>Superseded revision. Do not use it for current work.</div></div>` : ""}
@@ -169,6 +170,17 @@ function render(r) {
   } else html += `<div class="answer" id="answer-text">${formatAnswer(r.answer)}</div>`;
   (r.revision_notes || []).forEach((n) => { html += `<div class="banner info">${ICON.info}<div>${esc(n)}</div></div>`; });
 
+  // Required evidence: shown verbatim from the document, whatever the AI wrote (deterministic, not model output).
+  (r.required || []).forEach((x) => {
+    const rpages = x.page_range[0] === x.page_range[1] ? `p.${x.page_range[0]}` : `p.${x.page_range[0]}–${x.page_range[1]}`;
+    const isRule = x.kind === "rule";
+    html += `<div class="required"><div class="req-head">${ICON.warn}<div><b>${isRule ? "The rule this exception belongs to" : "Exception that applies"}</b>
+        <span>Always shown together with §${esc(x.qualifies)}. Copied word for word from ${esc(x.doc_no)} Rev ${esc(x.revision)}.</span></div></div>
+      <div class="req-title">§${esc(x.section)} · ${rpages}</div>
+      <div class="req-text">${renderExcerpt(x.text, tok)}</div>
+      <div class="actions"><a class="btn ghost" href="${esc(x.pdf_url)}" target="_blank" rel="noopener">${ICON.pdf}Open PDF at page ${x.page}</a></div></div>`;
+  });
+
   const cited = r.sources.filter((s) => s.cited);
   if (cited.length) {
     html += `<div class="cites"><span class="lbl">Sources</span>` + cited.map((s) =>
@@ -180,8 +192,12 @@ function render(r) {
       <button class="act" type="button" data-fb="0" aria-label="This answer was not helpful">${ICON.down}<span>Not helpful</span></button>
       <span class="thanks" id="thanks"></span><span class="ms">${r.latency_ms} ms</span></div></div>`;
 
-  const used = r.sources.filter((s) => s.cited), other = r.sources.filter((s) => !s.cited && !s.also);
+  const used = r.sources.filter((s) => s.cited), other = r.sources.filter((s) => !s.cited && !s.also && !s.required);
+  const reqSrc = r.sources.filter((s) => s.required && !s.cited);
   let evidence = `<h3 class="sec-title">Source</h3>` + used.map((s, i) => sourceCard(s, tok, i === 0)).join("");
+  if (reqSrc.length) {
+    evidence += `<h3 class="sec-title">Required with this answer</h3>` + reqSrc.map((s) => sourceCard(s, tok, true)).join("");
+  }
   if (alsoSrc.length) {
     evidence += `<h3 class="sec-title">Also read before acting</h3>` + alsoSrc.map((s) => sourceCard(s, tok, true)).join("");
   }

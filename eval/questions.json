@@ -4,7 +4,7 @@
   {"id": "S2", "source": "sample", "question": "The machine is showing alarm AL-104. What does it mean and what should the operator do?",
    "answerable": true, "evidence": ["Top up with ISO VG 68"], "must_include": ["68", "reset"], "expected_doc": "MNT-MAN-CNC-02", "notes": "exact code; row is on page 2"},
   {"id": "S3", "source": "sample", "question": "Who is allowed to remove a lockout lock from a machine?",
-   "answerable": true, "evidence": ["removes only their own lock", "Production Manager and the Safety Officer"], "must_include": ["own lock", "production manager", "safety officer"], "expected_doc": "SAF-SOP-003", "notes": "needs two sections (normal rule + owner-absent exception)"},
+   "answerable": true, "evidence": ["removes only their own lock", "Production Manager and the Safety Officer"], "must_include": ["own lock", "production manager", "safety officer"], "requires_exception": "Production Manager and the Safety Officer", "expected_doc": "SAF-SOP-003", "notes": "needs two sections (normal rule + owner-absent exception)"},
   {"id": "S4", "source": "sample", "question": "What is the outer diameter tolerance for the BH-220 bearing housing?",
    "answerable": true, "evidence": ["+/- 0.050"], "must_include": ["0.050"], "expected_doc": "QC-SOP-014", "expected_revision": "04", "notes": "right row of a table; trailing zero must survive"},
   {"id": "S5", "source": "sample", "question": "How often should spindle runout be checked, and who does it?",
@@ -33,6 +33,11 @@
    "answerable": true, "evidence": ["reads zero before loosening any fitting", "Apply your personal red lock"], "must_include": ["zero", "lock"], "expected_doc": "MNT-MAN-CNC-02", "notes": "two documents; must include lockout"},
   {"id": "R6", "source": "own_candidate", "question": "Who holds the key to the quarantine cage?",
    "answerable": true, "evidence": ["key is held by the Shift QC Supervisor"], "must_include": ["shift qc supervisor"], "expected_doc": "QC-SOP-014", "expected_revision": "04", "notes": "detail in a procedure step"},
+
+  {"id": "L1", "source": "extra", "question": "Can a supervisor take off another person's lock?",
+   "answerable": true, "evidence": ["Nobody may remove another person's lock", "Production Manager and the Safety Officer"], "must_include": ["production manager", "safety officer"], "requires_exception": "Production Manager and the Safety Officer", "expected_doc": "SAF-SOP-003", "notes": "same rule as S3, different wording: the exception must still appear"},
+  {"id": "L2", "source": "extra", "question": "How do I apply my lock before maintenance?",
+   "answerable": true, "evidence": ["Apply your personal red lock and danger tag"], "must_include": ["lock"], "expected_doc": "SAF-SOP-003", "notes": "about applying locks, not removing them: the owner-absent exception should NOT be forced in"},
 
   {"id": "N1", "source": "own_candidate", "question": "What is the overheating warning procedure?",
    "answerable": false, "notes": "the example from my first journey draft; not in any document"},

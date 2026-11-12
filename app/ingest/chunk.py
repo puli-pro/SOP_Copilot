@@ -107,6 +107,54 @@ def chunk_document(parsed: dict) -> list[dict]:
     return chunks
 
 
+# ---------------------------------------------------------------------------------------------
+# Exception linking. Some sections do not stand alone: they are the exception to a rule written in
+# another section ("Removing Locks" vs "Removal of a Lock When the Owner Is Absent"). If an answer
+# rests on the rule, the exception is required evidence. We find such pairs at ingest time, with no
+# model involved: a section is an exception if its heading (or opening sentence) says so, and it
+# qualifies the sections of the same document and revision that share its heading's topic words.
+# ---------------------------------------------------------------------------------------------
+EXCEPTION_CUE_RE = re.compile(r"\b(when|if|unless|except|exceptions?|absent|emergency|deviation|waiver)\b", re.I)
+OPENING_CUE_RE = re.compile(r"\bonly through this procedure\b|\bonly if\b|\bunless\b|\bmay be \w+ only\b", re.I)
+_TITLE_NOISE = set("a an the of is are in on for to and or when if unless except exception exceptions absent emergency "
+                   "deviation waiver with from by at as".split())
+
+
+def _stem(word: str) -> str:
+    w = word.lower()
+    for suffix in ("ing", "ed", "al", "es", "s"):
+        if w.endswith(suffix) and len(w) - len(suffix) >= 3:
+            return w[: -len(suffix)]
+    return w
+
+
+def _topic_stems(title: str) -> set[str]:
+    return {_stem(w) for w in re.findall(r"[A-Za-z]+", title) if w.lower() not in _TITLE_NOISE and len(w) > 2}
+
+
+def link_exceptions(chunks: list[dict]) -> int:
+    """Adds `exception_for` (on the exception section) and `qualified_by` (on the rule). Returns the pair count."""
+    for c in chunks:
+        c["exception_for"], c["qualified_by"] = [], []
+    pairs = 0
+    for exc in chunks:
+        opening = exc["text"].split("\n", 1)[0]
+        if not (EXCEPTION_CUE_RE.search(exc["section_title"]) or OPENING_CUE_RE.search(opening)):
+            continue
+        exc_stems = _topic_stems(exc["section_title"])
+        for base in chunks:
+            if base is exc or base["doc_no"] != exc["doc_no"] or base["revision"] != exc["revision"]:
+                continue
+            if EXCEPTION_CUE_RE.search(base["section_title"]):
+                continue  # an exception does not qualify another exception
+            base_stems = _topic_stems(base["section_title"])
+            if base_stems and len(exc_stems & base_stems) >= min(2, len(base_stems)):
+                exc["exception_for"].append(base["chunk_id"])
+                base["qualified_by"].append(exc["chunk_id"])
+                pairs += 1
+    return pairs
+
+
 def fixed_size_chunks(parsed_pdf_text: dict[str, str], size: int = 500, overlap: int = 0) -> list[dict]:
     """Baseline for the eval: cut plain page text every `size` characters, ignoring structure."""
     out = []

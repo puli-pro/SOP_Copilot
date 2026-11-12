@@ -150,6 +150,20 @@ class Retriever:
         info = {"normalised_query": nq, "include_superseded": include_superseded}
         return hits, info
 
+    def add_exceptions(self, hits: list[Hit]) -> list[Hit]:
+        """Required evidence: if a retrieved section is qualified by an exception section (see
+        ingest.chunk.link_exceptions), that exception is always in the results, whatever its rank or score."""
+        by_id = {c["chunk_id"]: c for c in self.chunks}
+        have = {h.chunk["chunk_id"] for h in hits}
+        extra = []
+        for h in hits:
+            # both directions: a rule brings its exceptions, an exception brings the rule it qualifies
+            for linked in h.chunk.get("qualified_by", []) + h.chunk.get("exception_for", []):
+                if linked not in have and linked in by_id:
+                    have.add(linked)
+                    extra.append(Hit(by_id[linked], 0.0, 0.0, 0.0, 0))
+        return hits + extra
+
     def add_linked(self, hits: list[Hit], question: str, include_superseded: bool, limit: int = 5) -> list[Hit]:
         """If a retrieved chunk points to another SOP (e.g. hose replacement -> SAF-SOP-003) and that SOP
         is not in the results, add its best-matching chunk. Keeps cross-document answers complete."""

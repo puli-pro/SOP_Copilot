@@ -59,8 +59,43 @@ def _source(n: int, hit: Hit, qtokens: set[str], cited: bool) -> dict:
         "pdf_url": f"/api/pdf/{c['file']}#page={page}",
         "cited": cited,
         "also": False,
+        "required": False,
         "score": round(hit.rrf, 4),
     }
+
+
+def _required_evidence(hits: list[Hit], cited_ns: list[int], qtokens: set[str]) -> list[dict]:
+    """Deterministic requirement: when an answer rests on a rule that has a linked exception section,
+    that exception is shown verbatim next to the answer, whatever the model wrote."""
+    index = {h.chunk["chunk_id"]: n for n, h in enumerate(hits, start=1)}
+    out, seen = [], set()
+    for c in cited_ns:
+        cited_chunk = hits[c - 1].chunk
+        # Works both ways: an answer on a rule requires its exceptions; an answer on an exception requires the rule.
+        links = [(i, "exception") for i in cited_chunk.get("qualified_by", [])] + \
+                [(i, "rule") for i in cited_chunk.get("exception_for", [])]
+        if not links:
+            continue
+        # The pair always travels together: the partner(s) AND the cited section itself, verbatim, whichever
+        # half the model happened to cite. (A section the model also cited still gets its block here.)
+        members = [(index[i], kind, f"{cited_chunk['section_number']}. {cited_chunk['section_title']}")
+                   for i, kind in links if i in index]
+        own_kind = "exception" if cited_chunk.get("exception_for") else "rule"
+        partner = next((hits[n - 1].chunk for n, _, _ in members), None)
+        if partner is not None:
+            members.append((c, own_kind, f"{partner['section_number']}. {partner['section_title']}"))
+        for n, kind, label in members:
+            if n in seen:
+                continue
+            seen.add(n)
+            src = _source(n, hits[n - 1], qtokens, cited=False)
+            out.append({
+                "n": n, "kind": kind, "doc_no": src["doc_no"], "revision": src["revision"], "section": src["section"],
+                "page": src["page"], "page_range": src["page_range"], "text": src["text"], "pdf_url": src["pdf_url"],
+                "qualifies": label,
+            })
+    out.sort(key=lambda r: (r["kind"] != "rule", r["n"]))  # the rule first, then its exception
+    return out
 
 
 def _revision_notes(retr: Retriever, sources: list[dict]) -> list[str]:
@@ -153,11 +188,12 @@ def ask(question: str) -> dict:
 
     hits, info = retr.search(question)
     hits = retr.add_linked(hits, question, info["include_superseded"])
+    hits = retr.add_exceptions(hits)  # required evidence is always in the results, and in the LLM's context
     qtokens = set(tokenize(info["normalised_query"]))
 
     resp: dict = {
         "trace_id": trace_id, "question": question, "answerable": False, "mode": "not_found",
-        "answer": "", "safety_flag": False, "sources": [], "closest": [], "revision_notes": [],
+        "answer": "", "safety_flag": False, "required": [], "sources": [], "closest": [], "revision_notes": [],
         "notice": "", "reason": "",
     }
 
@@ -170,7 +206,8 @@ def ask(question: str) -> dict:
             "retrieved": [{"id": h.chunk["chunk_id"], "rrf": round(h.rrf, 4), "cos": round(h.cosine, 3),
                            "bm25": round(h.bm25, 2), "overlap": h.overlap} for h in hits],
             "mode": resp["mode"], "answerable": resp["answerable"], "reason": resp["reason"],
-            "citations": [s["n"] for s in resp["sources"] if s["cited"]], "latency_ms": resp["latency_ms"],
+            "citations": [s["n"] for s in resp["sources"] if s["cited"]],
+            "required_evidence": [r["n"] for r in resp["required"]], "latency_ms": resp["latency_ms"],
         })
         return resp
 
@@ -203,6 +240,9 @@ def ask(question: str) -> dict:
             sources=[_source(i, h, qtokens, cited=True) for i, h in enumerate(hits, start=1)],
         )
         resp["safety_flag"] = any(h.chunk["has_safety_terms"] for h in hits[:2])
+        resp["required"] = _required_evidence(hits, list(range(1, len(hits) + 1)), qtokens)
+        for r in resp["required"]:
+            resp["sources"][r["n"] - 1]["required"] = True
         resp["revision_notes"] = _revision_notes(retr, resp["sources"][:1])
         return finish()
 
@@ -214,8 +254,13 @@ def ask(question: str) -> dict:
     if isinstance(exceptions, list):
         exceptions = " ".join(str(x) for x in exceptions)
     exceptions = (exceptions or "").strip()
-    if exceptions and exceptions.lower() not in ("none", "n/a", "no exceptions", "null") and answer:
-        answer = f"{answer}\n\n{exceptions}"
+    has_exceptions = bool(exceptions) and exceptions.lower() not in ("none", "n/a", "no exceptions", "null")
+    # A model that writes an exception from the excerpts, names an excerpt, and still says "answerable: false"
+    # has contradicted itself. Never answer "not found" to a question the documents cover: treat the
+    # exception it found as the answer (it must still pass the citation check below).
+    found_something = bool(out.get("answerable")) or (has_exceptions and bool(model_cites))
+    if has_exceptions:
+        answer = f"{answer}\n\n{exceptions}" if answer else exceptions
     # Small models often cite the wrong excerpt number. So the numbers are only a hint: an excerpt counts as
     # cited only if the answer text is actually found in it.
     named_ok = {c for c in model_cites if _supports(answer, hits[c - 1].chunk["text"], True)}
@@ -223,7 +268,7 @@ def ask(question: str) -> dict:
     # Excerpts the model named (and the answer really matches) are the citations. Only if it named none that
     # fit do we fall back to the excerpts that strongly match the answer.
     cites = sorted(named_ok or strong)
-    if not out.get("answerable") or not answer:
+    if not found_something or not answer:
         resp.update(reason="llm: excerpts do not contain the answer", closest=_closest(hits), notice=_who_to_ask(hits))
         return finish()
     if not cites:
@@ -237,13 +282,18 @@ def ask(question: str) -> dict:
     # model did not cite is flagged "also read before you act".
     resp.update(mode="llm", answerable=True, answer=answer, safety_flag=safety_flag,
                 sources=[_source(i, h, qtokens, cited=(i in cites)) for i, h in enumerate(hits, start=1)])
+    # Required evidence: the exception to any cited rule is shown verbatim, no matter what the model said.
+    resp["required"] = _required_evidence(hits, cites, qtokens)
+    required_ns = {r["n"] for r in resp["required"]}
+    for s in resp["sources"]:
+        s["required"] = s["n"] in required_ns
     if safety_flag:
         cited_docs = {hits[c - 1].chunk["doc_no"] for c in cites}
         for s in resp["sources"]:
             h = hits[s["n"] - 1]
-            if not s["cited"] and h.chunk["has_safety_terms"] and h.chunk["doc_no"] in cited_docs:
+            if not s["cited"] and not s["required"] and h.chunk["has_safety_terms"] and h.chunk["doc_no"] in cited_docs:
                 s["also"] = True
-    # cited first, then "also read", then the rest (kept for transparency)
-    resp["sources"].sort(key=lambda s: (not s["cited"], not s["also"], s["n"]))
+    # cited first, then required, then "also read", then the rest (kept for transparency)
+    resp["sources"].sort(key=lambda s: (not s["cited"], not s["required"], not s["also"], s["n"]))
     resp["revision_notes"] = _revision_notes(retr, [s for s in resp["sources"] if s["cited"]])
     return finish()
