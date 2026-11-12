@@ -207,7 +207,7 @@ Stretch, only if time remains: Dockerfile; safety callout if not chosen as the i
 | Steps 1–2: understand the user, user journey | Complete in THINKING.md, sections 1–2 |
 | Step 3: AI challenge and reflection | Complete in THINKING.md, section 3 |
 | Step 6: final reflection | Complete in THINKING.md, section 5 |
-| Public GitHub repo, screen recording | Public repository and submission reply are complete. The 2:44 recording is available locally at [Final_Demo_Video.mp4](Final_Demo_Video.mp4) and via [Google Drive](https://drive.google.com/file/d/1mmNGQSG6C15NXcAygfkw_-LQO1EEUMzt/view?usp=sharing). These current documentation edits still need to be pushed to update the public repository |
+| Public GitHub repo, screen recording | Public repository and submission reply are complete. The 2:44 recording is available locally at [Final_Demo_Video.mp4](Final_Demo_Video.mp4) and via [Google Drive](https://drive.google.com/file/d/1mmNGQSG6C15NXcAygfkw_-LQO1EEUMzt/view?usp=sharing). All the Current documentation edits and updates are pushed to the public repository |
 
 ## 10. If this had hundreds of SOPs: what I would add, and what would trigger it
 
