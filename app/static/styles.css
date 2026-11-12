@@ -206,6 +206,10 @@ main { flex: 1; width: 100%; padding: 16px 16px 12px; }
 .badge.used { background: var(--brand-soft); color: var(--brand); }
 .badge.req { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
 
+details.ai-summary { margin: 8px 0; border: 1px dashed var(--line); border-radius: 10px; padding: 0 12px; }
+details.ai-summary > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--muted); font-weight: 600; font-size: .92rem; }
+details.ai-summary .answer { font-size: 1rem; padding-bottom: 8px; color: var(--muted); }
+
 /* Required evidence block (exception copied verbatim from the SOP) */
 .required { margin: 12px 0; padding: 14px; border-radius: 12px; background: var(--warn-bg); border: 2px solid var(--warn-line); }
 .req-head { display: flex; gap: 10px; align-items: flex-start; color: var(--warn); }

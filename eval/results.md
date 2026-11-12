@@ -1,6 +1,6 @@
 # Evaluation results
 
-Run: 2026-11-12 10:15 | embedding model `BAAI/bge-small-en-v1.5` | LLM `qwen2.5:3b` (used) | 18 answerable + 6 unanswerable questions over 7 pages (a sanity check, not a benchmark).
+Run: 2026-11-12 11:22 | embedding model `BAAI/bge-small-en-v1.5` | LLM `qwen2.5:3b` (used) | 18 answerable + 6 unanswerable questions over 7 pages (a sanity check, not a benchmark). Key facts are checked against what the supervisor sees: the AI's answer plus the blocks the app copies verbatim from the document (the matching table row and any required exception).
 
 ## A. Retrieval: structure-aware chunks vs fixed-size baseline (no LLM involved)
 
@@ -52,15 +52,17 @@ Unanswerable questions, before the LLM:
 
 | Metric | Result |
 |---|---|
-| Key-fact accuracy (answerable) | 16/18 (89%) |
+| Key facts visible on screen (AI answer + verbatim table row + required exception) | 18/18 (100%) |
+| ...for comparison: key facts in the AI's own sentence alone | 15/18 (83%) |
 | Citation accuracy (a cited source contains the evidence) | 18/18 (100%) |
 | False-accept rate (answered an unanswerable question) | 0/6 (0%) |
 | False-reject rate (refused an answerable question) | 0/18 (0%) |
 | Superseded-revision leak (cited a Rev 03 source) | 0/17 |
+| "Open PDF at page N" points to the right page (answers that sit on page 2) | 5/5 |
 | Required exception shown (safety rule + its exception, enforced by the app) | 2/2 |
 | ...for comparison: exception present in the AI's own answer text | 0/2 |
 | Exception blocks shown where not needed | 0 (none) |
-| Latency p50 / p95 (this laptop) | 6025 ms / 14390 ms |
+| Latency p50 / p95 (this laptop) | 2538 ms / 5251 ms |
 
 | ID | Mode | Result |
 |---|---|---|
@@ -69,8 +71,8 @@ Unanswerable questions, before the LLM:
 | S3 | llm | fact ok, cite ok |
 | S4 | llm | fact ok, cite ok |
 | S5 | llm | fact ok, cite ok |
-| X1 | llm | FACT MISSING, cite ok |
-| X2 | llm | FACT MISSING, cite ok |
+| X1 | llm | fact ok, cite ok |
+| X2 | llm | fact ok, cite ok |
 | X3 | llm | fact ok, cite ok |
 | X4 | llm | fact ok, cite ok |
 | X5 | llm | fact ok, cite ok |

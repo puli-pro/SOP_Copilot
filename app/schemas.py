@@ -24,6 +24,15 @@ class RequiredEvidence(BaseModel):
     qualifies: str  # the cited section this one belongs with
 
 
+class MatchedRow(BaseModel):
+    """The table row the question is about, verbatim from the document, with its column labels."""
+    doc_no: str
+    revision: str
+    section: str
+    page: int
+    fields: list[list[str]]
+
+
 class Source(BaseModel):
     n: int
     doc_no: str
@@ -59,6 +68,7 @@ class AskResponse(BaseModel):
     answer: str
     safety_flag: bool
     required: list[RequiredEvidence] = []
+    matched_row: MatchedRow | None = None
     sources: list[Source]
     closest: list[Closest]
     revision_notes: list[str]

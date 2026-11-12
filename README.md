@@ -7,6 +7,26 @@ when the answer is not in the documents, and always prefers the **current** revi
 Stack: FastAPI, PyMuPDF, `bge-small-en-v1.5` embeddings, BM25 + vector search fused with RRF, Ollama (`qwen2.5:3b`, a 1.9 GB model that runs well on a 6 GB laptop GPU), plain HTML/JS UI.
 Why these choices, and what I left out: see [FINAL_PLAN.md](FINAL_PLAN.md) and [THINKING.md](THINKING.md).
 
+## What it looks like
+
+**Desktop** (sidebar with documents and their revisions; the answer on the left, the exact evidence on the right):
+
+![Home screen on desktop](screenshots/desktop-1-home.png)
+
+![Thinking indicator while the AI works](screenshots/desktop-2-loading.png)
+
+![Answer with source table, highlighted row, revision badge and PDF link](screenshots/desktop-3-answer.png)
+
+**Phone**, opened over the same Wi-Fi at `http://<laptop-ip>:8000` (a real phone, not an emulator). Same question, same answer, with the exact table row highlighted and a link to PDF page 2:
+
+<table>
+  <tr>
+    <td><img src="screenshots/phone-1-answer.jpeg" alt="Phone: question and answer" width="260"></td>
+    <td><img src="screenshots/phone-2-source.jpeg" alt="Phone: source card" width="260"></td>
+    <td><img src="screenshots/phone-3-highlighted-row.jpeg" alt="Phone: highlighted AL-104 row and Open PDF button" width="260"></td>
+  </tr>
+</table>
+
 ## Setup (Windows, Python 3.11)
 
 ```bash
@@ -33,7 +53,9 @@ Optional settings go in `.env` (see `.env.example`).
    ```
 4. On the phone (same Wi-Fi) open `http://<laptop-ip>:8000`.
 5. If it still does not load, the router may isolate clients (common on office/college Wi-Fi). Use the phone's hotspot and connect the laptop to it.
-6. Warm up the model with one question before demoing: the first Ollama call is slow.
+6. The server loads the model at startup, so the first question is not slow. Plug the laptop in: on battery the GPU slows down and answers took 14 s instead of 3 s in my tests.
+
+What happened for me: Windows had no inbound rule for port 8000 and marks my Wi-Fi as "Public", so I added the rule above. After that the app loaded on my phone at `http://10.199.122.65:8000`, and my phone's browser shows "Not secure" only because this is plain HTTP on the local network (see the screenshots above).
 
 ## How it answers
 
@@ -45,11 +67,15 @@ question → normalise ("al305" → "AL-305", "OD" → "outer diameter")
          → loose relevance gate (nothing resembles the question → "not found")
          → LLM answers only from numbered excerpts, returns JSON {answerable, answer, exceptions, citations}
          → citation check (the answer text must really appear in the cited section; no valid citation → "not found")
+         → second look: if retrieval is very confident but the model refused, ask once more (the citation check still applies)
          → required evidence: a rule and its exception are always shown together, word for word
+         → matching table row: for lookups (tolerance, alarm, schedule) the row is copied from the PDF with its column labels
          → answer + source cards (revision badge, section, page, exact text, "Open PDF at page N")
 ```
 
 **Required evidence for safety rules (deterministic, not left to the model).** Some sections are the exception to a rule in another section: "5. Removing Locks" says each person removes only their own lock, and "6. Removal of a Lock When the Owner Is Absent" says what happens when the owner has left. A small model may quote only the rule. So at ingest the app detects exception sections from their headings and links each to the rule it qualifies (by the heading's topic words, within the same document and revision). At answer time, whenever either half is cited, **both halves are pulled into the model's context and shown verbatim in amber blocks under the answer**, whatever the model wrote. In the evaluation this showed the exception in 2/2 lockout questions, while the model's own answer text contained it in 0/2. Limit: it only recognises exceptions that are written as their own section with a telling heading ("When…", "If…", "Absent", "Emergency").
+
+**Matching table row (also deterministic).** The 1.9 GB model sometimes words a table lookup badly or slips a digit (`0.05` for `0.050`, "quarterly" for monthly). So for questions that point at one table row (an alarm code, a tolerance, a schedule line), the app picks the row itself, by the code or by words shared with that row and no other, and shows it with its column labels, for example `Characteristic: Outer diameter | Tolerance: +/- 0.050 | Method: Digital caliper | Class: Major`. It shows nothing when the answer is prose or when two rows tie.
 
 **The improvement I added: revision awareness.** `QC-SOP-014` is supplied twice (Rev 03 from 2023 and Rev 04 from 2026)
 and they disagree (sample size, quarantine location, form, escalation, certificate rule). Each chunk carries its
@@ -77,16 +103,18 @@ Full results are in [eval/results.md](eval/results.md) (24 questions over 7 page
 | Measure | Result |
 |---|---|
 | Retrieval: right evidence in the top 4 (mine vs a fixed 500-character chunking baseline) | 100% vs 81% |
-| Key facts correct in the answer | 16/18 (89%) |
+| Key facts visible on screen (the AI's answer + the table row and exception the app copies from the document) | 18/18 (100%) |
+| ...the AI's own sentence alone | 15/18 (83%) |
 | Answer cites a source that contains the evidence | 18/18 (100%) |
 | Answered an unanswerable question (false accept) | 0/6 |
 | Refused an answerable question (false reject) | 0/18 |
 | Answer used the superseded Rev 03 | 0/17 |
+| "Open PDF at page N" points to the right page (answers that sit on page 2) | 5/5 |
 | Rule's exception shown next to the answer (enforced by the app) | 2/2 (the AI's own text had it 0/2) |
 | Exception blocks shown on unrelated questions | 0 |
-| Answer time, median / slowest | 2.5 s / 4 s on a good run, up to 22 s on a slow run (laptop speed varies) |
+| Answer time, median / slowest | 2.5 s / 5.3 s plugged in (14 s median when the laptop ran on battery) |
 
-The two key-fact misses are the bare alarm-code queries (`AL-305`, `al305 on CNC-06`): the model gives the action but not the meaning ("Spindle overload").
+Read the first two rows together: the 100% includes blocks the app copies verbatim from the PDF, which is the point of the design, but the model on its own gets 15 of 18. In the last check its three misses were: the lockout question (it wrote "the Shift Supervisor and Production Manager with Safety Officer's approval are allowed to remove a lock", which mis-states the rule), the bare code `AL-305` (the action but not the meaning), and the `bh220 od` query (it dropped the trailing zero and added the wrong row). That is why the app shows the SOP's own words for the lockout rule and the matching table row for lookups, and keeps the AI's sentence for lockout collapsed and labelled "not verified". Results move by a question or two between runs even with temperature 0 and a fixed seed (earlier AI-only scores were 14 to 16 of 18), so treat them as a range, not a precise figure. I tuned the app while looking at these questions, so they are optimistic.
 
 ## My 5 questions and the app's answers
 

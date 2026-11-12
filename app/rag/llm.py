@@ -28,7 +28,8 @@ def generate_json(system: str, user: str) -> dict:
         "model": config.OLLAMA_MODEL,
         "stream": False,
         "format": "json",
-        "options": {"temperature": 0, "num_ctx": 4096},
+        # temperature 0 plus a fixed seed so the same question gives the same answer from run to run
+        "options": {"temperature": 0, "seed": 7, "num_ctx": 4096},
         "keep_alive": "2h",
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
     }

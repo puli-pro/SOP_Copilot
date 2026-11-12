@@ -409,6 +409,10 @@ This is how it is built:
 
 The app uses PyMuPDF for document extraction, BGE-small-en-v1.5 for embeddings, BM25 for keyword retrieval, NumPy for cosine similarity, Ollama (`qwen2.5:3b`) for local language-model inference, FastAPI for the API and a plain HTML/CSS/JS page for the interface.
 
+You can see it in the screenshots: every source card shows the document number, the revision, a green CURRENT badge (superseded ones get a red badge and a warning), the section, the page and the effective date.
+
+![Answer with revision badge, section, page and effective date](screenshots/desktop-3-answer.png)
+
 One honest limit: "current" means "the highest revision number found in the PDFs I was given". The app cannot know whether the plant has issued a newer revision that is not in the folder. That is why one of my customer questions is about an authoritative source of document status.
 
 ---
@@ -440,7 +444,7 @@ I have built and measured the app, but several things remain uncertain.
 - **Evaluation dataset size:** My evaluation has 24 questions (18 answerable, 6 not) across seven pages of source documents. It found real bugs, and I also tuned the app while looking at it, so the scores (for example 89% of key facts correct) are optimistic. It cannot establish production-level reliability.
 - **Retrieval reliability at scale:** The current document collection is small. I am unsure how retrieval performance will change when the system contains hundreds of documents with overlapping terminology and similar procedures.
 - **Table interpretation by a small model:** This was not hypothetical. The 1.9 GB model said spindle runout is checked "quarterly" when the table says monthly, and it dropped a trailing zero from a tolerance (0.05 instead of 0.050). Two fixes helped (giving the model each row as "Header: value" text, and a check that restores dropped digits), but I cannot promise it will never misread a table I have not tested.
-- **Bare codes:** a query such as "AL-305" still gets the action ("stop cycle, check tool wear") without the meaning ("spindle overload") in two of my test questions.
+- **The model's own sentence:** for a bare code such as "AL-305" it still gives the action without the meaning ("spindle overload"); the matching row the app shows covers that, but the sentence itself is incomplete. For the lockout question the model once wrote that "the Shift Supervisor and Production Manager with Safety Officer's approval are allowed to remove a lockout lock", which is a wrong summary of the rule. I would not put an unchecked small-model sentence at the top of a safety answer without a larger model and a much bigger test set.
 - **Document lifecycle:** I do not know how frequently the plant updates its SOPs, how superseded documents are managed or whether an authoritative system identifies the currently approved revision.
 - **Multi-plant requirements:** It is unclear whether the application should eventually support multiple plants, each with different procedures and document permissions.
 - **Answer detail:** Different situations may require different levels of detail. An alarm-related question may need a short action, whereas a maintenance procedure may require several steps and safety precautions.
@@ -488,7 +492,14 @@ What I tried, including what did not work:
 
 What finally worked was to stop asking the model to be complete and make the app enforce it. At ingest, the app detects sections that are exceptions from their headings (for example "Removal of a Lock When the Owner Is Absent") and links each to the rule it qualifies. At answer time, whenever either half is cited, both are shown word for word under the answer, and both are given to the model. In my evaluation the exception was shown in 2 of 2 lockout questions, while the model's own answer text contained it in 0 of 2. It showed up on none of the unrelated questions. Along the way I also fixed a case where the model contradicted itself ("not answerable" while writing the correct exception), which had made the app say "not found" on a safety question the documents do answer.
 
-Final numbers from `eval/results.md` (24 questions): key facts 16/18, citations 18/18, 0 of 6 unanswerable questions answered, 0 of 18 answerable questions refused, 0 of 17 using the old revision. I treat these as a sanity check, not proof, because I tuned the app while looking at these same questions.
+More fixes followed from the same principle, and one of them came from my own screenshots:
+
+- **The matching table row.** The model sometimes worded a table lookup badly or slipped a digit (`0.05` for `0.050`, "quarterly" for monthly). So for questions that point at one table row (an alarm code, a tolerance, a schedule line) the app picks the row itself and shows it with its column labels, for example `Characteristic: Outer diameter | Tolerance: +/- 0.050 | Method: Digital caliper | Class: Major`. It shows nothing when the answer is prose or when two rows tie.
+- **Safety rules show the SOP's own words.** When a rule has an exception, the app now leads with the verbatim rule and exception, and keeps the model's sentence collapsed under "AI's short summary (not verified)", because on the lockout question the model's sentence was once wrong.
+- **A wrong page number found in my screenshots.** When I compared my desktop and phone screenshots, the same AL-104 answer said "Open PDF at page 1" on the desktop and "page 2" on the phone (it is on page 2). My "which page" logic had a tie: the words "operator action" in my reworded question matched the table's header row on page 1 as well as the AL-104 row on page 2. I fixed it (an exact code match now outweighs generic words, and header rows are ignored) and added a check to the evaluation: the page link is right in 5 of 5 cases.
+- **A second look when the model refuses.** On a plain value question ("torque for the chuck mounting bolts") the model sometimes said "not answerable" and then answered correctly on the next try. When retrieval is very confident and the model refuses with nothing at all, the app now asks once more; the citation check still applies. The unanswerable questions never reach this step because their retrieval scores are low (I measured this on my six, so it could break on others).
+
+Final numbers from `eval/results.md` (24 questions): **18 of 18** key facts visible on screen, but only **15 of 18** from the model's own sentence, because the on-screen number includes the row and exception blocks the app copies from the PDF. Citations 18/18, 0 of 6 unanswerable questions answered, 0 of 18 answerable questions refused, 0 of 17 using the old revision, page links 5/5, the exception shown 2/2 (0/2 from the model alone). Results moved by a question or two between runs even with temperature 0 and a fixed seed, and I tuned the app while looking at these same questions, so I treat them as a sanity check, not proof.
 
 **Other problems while building and deploying**
 
@@ -496,7 +507,26 @@ Final numbers from `eval/results.md` (24 questions): key facts 16/18, citations 
 - **A silent bug in a safety check.** I wrote a regular expression in a Python string with `\b`, which Python turned into a backspace character. The check for codes that are in no document (for example AL-999) silently never fired, so the app tried to answer. I found it only because I tested AL-999 and CNC-12 and they were not refused.
 - **Stale page on the phone.** The browser kept showing an old version of the interface after I changed it, so the server now sends no-cache headers for the interface files.
 - **Dependency install and a restart.** `pip` failed on a Windows file lock and needed a retry, and Ollama had stopped overnight (I did not find out why) in the middle of an evaluation run. I only noticed because two answers suddenly looked wrong, so I re-ran the whole evaluation after restarting it. Response time also varied (about 2.5 seconds on a good run, up to 22 seconds on a slow one).
-- **Opening it from the phone:** **[Add after the phone test: what you saw, and what you had to change, for example the Windows firewall rule for port 8000 and the "Public" network profile.]**
+- **Opening it from the phone.** The server listens on all network interfaces (`0.0.0.0`), but Windows had no inbound rule for port 8000 and treats my Wi-Fi as a "Public" network, which blocks other devices. I added an inbound firewall rule (PowerShell as Administrator). After that the app loaded on my phone at `http://10.199.122.65:8000` over the same Wi-Fi, I asked the AL-104 question, and got the right answer with the exact table row highlighted and an "Open PDF at page 2" button (screenshots below). The phone's browser marks the page "Not secure" only because it is plain HTTP on the local network.
+- **Battery slowed the model down.** One evaluation run took a median of 14 seconds per answer instead of about 3. The laptop was running on battery at 28% (Balanced power plan), which throttles the GPU. I only found it by checking the power state after the slowdown. After plugging in, the median went back to about 2.5 seconds, so I mention it in the README for anyone who runs the demo.
+
+**Screenshots from my own run**
+
+Phone (same Wi-Fi, real phone):
+
+<table>
+  <tr>
+    <td><img src="screenshots/phone-1-answer.jpeg" alt="Phone: question and answer" width="250"></td>
+    <td><img src="screenshots/phone-2-source.jpeg" alt="Phone: source card" width="250"></td>
+    <td><img src="screenshots/phone-3-highlighted-row.jpeg" alt="Phone: highlighted AL-104 row" width="250"></td>
+  </tr>
+</table>
+
+Desktop:
+
+![Desktop home screen](screenshots/desktop-1-home.png)
+
+![Desktop answer with source table](screenshots/desktop-3-answer.png)
 
 ### Overall reflection
 

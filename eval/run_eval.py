@@ -137,13 +137,20 @@ def main():
         ok_fact = ok_cite = false_accept = false_reject = 0
         leak_answer = 0
         exc_needed = exc_shown = exc_in_model_answer = 0
+        page_needed = page_ok = 0
+        ok_fact_ai_only = 0
         spurious = []
         detail = []
         for q, resp in answers:
             if q["answerable"]:
                 # What the supervisor sees = the AI answer + the required exception blocks (copied from the SOP).
                 required_text = " ".join(r["text"] for r in resp.get("required", []))
-                text = norm(resp["answer"] + " " + required_text)
+                row = resp.get("matched_row") or {"fields": []}
+                row_text = " ".join(v for _, v in row["fields"])
+                text = norm(resp["answer"] + " " + required_text + " " + row_text)
+                if q.get("expected_page"):
+                    page_needed += 1
+                    page_ok += any(s["page"] == q["expected_page"] for s in resp["sources"] if s["cited"])
                 if q.get("requires_exception"):
                     exc_needed += 1
                     exc_shown += has(required_text, q["requires_exception"])
@@ -151,6 +158,8 @@ def main():
                 elif resp.get("required"):
                     spurious.append(q["id"])
                 fact = resp["mode"] == "llm" and all(norm(m) in text for m in q["must_include"])
+                ai_text = norm(resp["answer"])
+                ok_fact_ai_only += resp["mode"] == "llm" and all(norm(m) in ai_text for m in q["must_include"])
                 # a source shown with the answer: cited by the AI, or required by the rule/exception link
                 cited = [s for s in resp["sources"] if s["cited"] or s.get("required")]
                 cite_ok = any(all(has(s["text"], e) for e in [ev]) for s in cited for ev in q["evidence"][:1])
@@ -166,7 +175,8 @@ def main():
                 detail.append({"id": q["id"], "mode": resp["mode"], "refused": resp["mode"] != "llm"})
         full = {"fact": ok_fact, "cite": ok_cite, "false_accept": false_accept, "false_reject": false_reject,
                 "leak": leak_answer, "exc_needed": exc_needed, "exc_shown": exc_shown,
-                "exc_in_model_answer": exc_in_model_answer, "spurious": spurious, "detail": detail}
+                "exc_in_model_answer": exc_in_model_answer, "spurious": spurious,
+                "page_needed": page_needed, "page_ok": page_ok, "fact_ai_only": ok_fact_ai_only, "detail": detail}
 
     # ---------- write results ----------
     n_a, n_u = len(answerable), len(unanswerable)
@@ -177,7 +187,9 @@ def main():
     md.append("# Evaluation results\n")
     md.append(f"Run: {time.strftime('%Y-%m-%d %H:%M')} | embedding model `{config.EMBED_MODEL}` | "
               f"LLM `{config.OLLAMA_MODEL}` ({'used' if llm_ready else 'NOT installed, so answer-level metrics were not run'}) | "
-              f"{n_a} answerable + {n_u} unanswerable questions over 7 pages (a sanity check, not a benchmark).\n")
+              f"{n_a} answerable + {n_u} unanswerable questions over 7 pages (a sanity check, not a benchmark). "
+              "Key facts are checked against what the supervisor sees: the AI's answer plus the blocks the app copies "
+              "verbatim from the document (the matching table row and any required exception).\n")
     md.append("## A. Retrieval: structure-aware chunks vs fixed-size baseline (no LLM involved)\n")
     md.append("| Metric | Structure-aware (mine) | Fixed 500-char baseline |\n|---|---|---|")
     for label, key in (("Evidence hit@1 (all evidence in the top chunk)", "h1"), ("Evidence hit@4 (all evidence in the top 4)", "h4")):
@@ -200,11 +212,13 @@ def main():
     md.append("\n## B. Full pipeline (retrieve, gate, LLM, citation check)\n")
     if full:
         md.append("| Metric | Result |\n|---|---|")
-        md.append(f"| Key-fact accuracy (answerable) | {full['fact']}/{n_a} ({pct(full['fact'], n_a)}) |")
+        md.append(f"| Key facts visible on screen (AI answer + verbatim table row + required exception) | {full['fact']}/{n_a} ({pct(full['fact'], n_a)}) |")
+        md.append(f"| ...for comparison: key facts in the AI's own sentence alone | {full['fact_ai_only']}/{n_a} ({pct(full['fact_ai_only'], n_a)}) |")
         md.append(f"| Citation accuracy (a cited source contains the evidence) | {full['cite']}/{n_a} ({pct(full['cite'], n_a)}) |")
         md.append(f"| False-accept rate (answered an unanswerable question) | {full['false_accept']}/{n_u} ({pct(full['false_accept'], n_u)}) |")
         md.append(f"| False-reject rate (refused an answerable question) | {full['false_reject']}/{n_a} ({pct(full['false_reject'], n_a)}) |")
         md.append(f"| Superseded-revision leak (cited a Rev 03 source) | {full['leak']}/{len(non_hist)} |")
+        md.append(f"| \"Open PDF at page N\" points to the right page (answers that sit on page 2) | {full['page_ok']}/{full['page_needed']} |")
         md.append(f"| Required exception shown (safety rule + its exception, enforced by the app) | {full['exc_shown']}/{full['exc_needed']} |")
         md.append(f"| ...for comparison: exception present in the AI's own answer text | {full['exc_in_model_answer']}/{full['exc_needed']} |")
         md.append(f"| Exception blocks shown where not needed | {len(full['spurious'])} ({', '.join(full['spurious']) or 'none'}) |")

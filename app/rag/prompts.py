@@ -15,6 +15,14 @@ Respond with JSON only, exactly in this shape:
  "citations": [numbers of the excerpts used for "answer" and "exceptions"]}"""
 
 
+# Added only for a "second look": the first answer was "not answerable" although retrieval was very confident.
+RETRY_NOTE = """
+
+NOTE: These excerpts were selected because they match the question very closely. Look again, carefully, including
+the table rows and numbered steps. If any excerpt contains the answer, set "answerable" to true and answer from it,
+quoting the numbers exactly. Only say "answerable": false if the excerpts really do not contain it."""
+
+
 def tables_to_records(text: str) -> str:
     """Rewrite Markdown tables as one 'Header: value; Header: value' line per row.
     Small models misread which cell belongs to which column in a Markdown grid; labelled rows avoid that.

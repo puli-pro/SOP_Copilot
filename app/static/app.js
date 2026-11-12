@@ -85,25 +85,6 @@ function renderExcerpt(text, tok) {
   return html;
 }
 
-// Search-only mode (no LLM): still put the single best-matching table row or line right in the answer card.
-function bestMatch(s, tok) {
-  const lines = s.text.split("\n");
-  const tableLines = lines.filter((l) => l.startsWith("|"));
-  const cells = (r) => r.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
-  if (tableLines.length > 2) {
-    const head = cells(tableLines[0]);
-    let best = null, bestScore = 0;
-    tableLines.slice(2).forEach((r) => {
-      const c = cells(r), t = c.join(" ").toLowerCase();
-      const sc = tok.codes.some((x) => t.includes(x)) ? 99 : tok.words.filter((w) => t.includes(w)).length;
-      if (sc > bestScore) { best = c; bestScore = sc; }
-    });
-    if (best && bestScore >= 2) return head.map((h, i) => [h, best[i] || ""]);
-  }
-  // Prose (procedures, rules) is never cut down to one line: that could drop an exception or a safety step.
-  return [];
-}
-
 /* ---------- render ---------- */
 function sourceCard(s, tok, open) {
   const sup = s.status === "superseded";
@@ -159,15 +140,17 @@ function render(r) {
     html += `<div class="banner safety">${ICON.warn}<div>This answer may not cover everything. Also read before you act:
       <div class="cites">${alsoSrc.map((s) => `<a class="cite" href="#src-${s.n}" data-src="${s.n}"><i></i>§${esc(s.section)} · p.${s.page}</a>`).join("")}</div></div></div>`;
   }
-  if (r.mode === "retrieval_only") {
-    const top = r.sources.find((s) => s.cited) || r.sources[0];
-    const pairs = top ? bestMatch(top, tok) : [];
-    if (pairs.length) {
-      html += `<div class="match"><div class="match-label">Best match · ${esc(top.doc_no)} Rev ${esc(top.revision)}, section ${esc(top.section.split(".")[0])}, p.${top.page}</div><dl>` +
-        pairs.map(([k, v]) => (k ? `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>` : `<dd class="wide">${esc(v)}</dd>`)).join("") + "</dl></div>";
-    }
-    html += `<div class="banner info">${ICON.info}<div>${esc(r.notice)}</div></div>`;
-  } else html += `<div class="answer" id="answer-text">${formatAnswer(r.answer)}</div>`;
+  // The table row the question is about, copied from the document by the app (not written by the AI).
+  const m = r.matched_row;
+  const rowBlock = m ? `<div class="match"><div class="match-label">Matching row in the document · ${esc(m.doc_no)} Rev ${esc(m.revision)}, §${esc(m.section.split(".")[0])}, p.${m.page}</div><dl>` +
+    m.fields.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("") + "</dl></div>" : "";
+  if (r.mode === "retrieval_only") html += rowBlock + `<div class="banner info">${ICON.info}<div>${esc(r.notice)}</div></div>`;
+  else if ((r.required || []).length) {
+    // A safety rule with an exception: the SOP's own words (below) are the answer. The AI's sentence is kept,
+    // but collapsed and labelled, because a small model can mis-summarise who may do what.
+    html += `<div class="banner info">${ICON.info}<div>This is a safety rule with an exception, so the SOP's own words are shown below instead of an AI summary.</div></div>
+      <details class="ai-summary"><summary>AI's short summary (not verified)</summary><div class="answer" id="answer-text">${formatAnswer(r.answer)}</div></details>` + rowBlock;
+  } else html += `<div class="answer" id="answer-text">${formatAnswer(r.answer)}</div>` + rowBlock;
   (r.revision_notes || []).forEach((n) => { html += `<div class="banner info">${ICON.info}<div>${esc(n)}</div></div>`; });
 
   // Required evidence: shown verbatim from the document, whatever the AI wrote (deterministic, not model output).

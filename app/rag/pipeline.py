@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from app import config
 from app.rag import llm
-from app.rag.prompts import SYSTEM, build_user_prompt
+from app.rag.prompts import RETRY_NOTE, SYSTEM, build_user_prompt
 from app.rag.retriever import Hit, Retriever, tokenize
 
 _retriever: Retriever | None = None
@@ -33,9 +33,17 @@ def _best_page(hit: Hit, qtokens: set[str]) -> int:
     if not pages or c["page_start"] == c["page_end"]:
         return c["page_start"]
     lines = c["text"].split("\n")
+    codes = {t for t in qtokens if re.match(r"^[a-z]{1,4}-\d", t)}  # AL-104, BH-220, ...
+    skip = set()
+    for i, line in enumerate(lines):
+        if line.startswith("|---"):
+            skip.update({i, i - 1})  # a table's separator and header row say nothing about which row was asked for
     best, best_score = pages[0], -1
-    for line, pg in zip(lines, pages):
-        score = len(qtokens & set(tokenize(line)))
+    for i, (line, pg) in enumerate(zip(lines, pages)):
+        if i in skip:
+            continue
+        toks = set(tokenize(line))
+        score = len(qtokens & toks) + 5 * len(codes & toks)  # an exact code match outweighs generic words
         if score > best_score:
             best, best_score = pg, score
     return best
@@ -62,6 +70,41 @@ def _source(n: int, hit: Hit, qtokens: set[str], cited: bool) -> dict:
         "required": False,
         "score": round(hit.rrf, 4),
     }
+
+
+def _matched_row(hits: list[Hit], ns: list[int], qtokens: set[str]) -> dict | None:
+    """The table row the question is about, copied from the document with its column labels. Computed by the app
+    (not the model), so a lookup such as a tolerance, an alarm or a schedule is always shown exactly as written.
+    A row counts if the question names its code, or shares at least two words with it and no other row does as well."""
+    codes = {t for t in qtokens if re.match(r"^[a-z]{1,4}-\d", t)}
+    cells = lambda r: [c.strip() for c in r.strip().strip("|").split("|")]
+    for n in ns:
+        chunk = hits[n - 1].chunk
+        lines, pages = chunk["text"].split("\n"), chunk.get("line_pages") or []
+        scored = []  # (score, header, row, line index)
+        for i in range(len(lines) - 1):
+            if not (lines[i].startswith("|") and lines[i + 1].startswith("|---")):
+                continue
+            head, j = cells(lines[i]), i + 2
+            while j < len(lines) and lines[j].startswith("|"):
+                row = cells(lines[j])
+                toks = set(tokenize(" ".join(row)))
+                scored.append((99 if codes & toks else len(qtokens & toks), head, row, j))
+                j += 1
+        if not scored:
+            continue
+        scored.sort(key=lambda s: -s[0])
+        top = scored[0]
+        unique = len(scored) == 1 or scored[1][0] < top[0] or top[0] == 99
+        if top[0] >= 2 and unique:
+            _, head, row, j = top
+            return {
+                "doc_no": chunk["doc_no"], "revision": chunk["revision"],
+                "section": f"{chunk['section_number']}. {chunk['section_title']}".strip(". "),
+                "page": pages[j] if j < len(pages) else chunk["page_start"],
+                "fields": [[h, v] for h, v in zip(head, row) if v],
+            }
+    return None
 
 
 def _required_evidence(hits: list[Hit], cited_ns: list[int], qtokens: set[str]) -> list[dict]:
@@ -193,8 +236,8 @@ def ask(question: str) -> dict:
 
     resp: dict = {
         "trace_id": trace_id, "question": question, "answerable": False, "mode": "not_found",
-        "answer": "", "safety_flag": False, "required": [], "sources": [], "closest": [], "revision_notes": [],
-        "notice": "", "reason": "",
+        "answer": "", "safety_flag": False, "required": [], "matched_row": None, "sources": [], "closest": [],
+        "revision_notes": [], "notice": "", "reason": "",
     }
 
     def finish() -> dict:
@@ -243,8 +286,23 @@ def ask(question: str) -> dict:
         resp["required"] = _required_evidence(hits, list(range(1, len(hits) + 1)), qtokens)
         for r in resp["required"]:
             resp["sources"][r["n"] - 1]["required"] = True
+        resp["matched_row"] = _matched_row(hits, list(range(1, len(hits) + 1)), qtokens)
         resp["revision_notes"] = _revision_notes(retr, resp["sources"][:1])
         return finish()
+
+    # Second look. A 3B model sometimes says "not answerable" for a plain value that is in the excerpt (the same
+    # question answers correctly on the next try). If retrieval is very confident and the model refused with
+    # nothing at all, ask once more with a nudge. The citation check below still applies, so this cannot invent
+    # an answer, and the weakly matching unanswerable questions never reach this branch.
+    refused_empty = not out.get("answerable") and not (out.get("answer") or "").strip() and not out.get("exceptions")
+    if refused_empty and best_cos >= 0.70 and best_overlap >= 3:
+        try:
+            out2 = llm.generate_json(SYSTEM + RETRY_NOTE, build_user_prompt(question, hits))
+            if out2.get("answerable") and (out2.get("answer") or "").strip():
+                out = out2
+                resp["reason"] = "second look: the model first refused although retrieval was confident"
+        except llm.LLMUnavailable:
+            pass
 
     # Layer 3: validate citations. An answer nobody can point to is treated as "not found".
     raw_cites = out.get("citations") or []
@@ -282,6 +340,7 @@ def ask(question: str) -> dict:
     # model did not cite is flagged "also read before you act".
     resp.update(mode="llm", answerable=True, answer=answer, safety_flag=safety_flag,
                 sources=[_source(i, h, qtokens, cited=(i in cites)) for i, h in enumerate(hits, start=1)])
+    resp["matched_row"] = _matched_row(hits, cites, qtokens)
     # Required evidence: the exception to any cited rule is shown verbatim, no matter what the model said.
     resp["required"] = _required_evidence(hits, cites, qtokens)
     required_ns = {r["n"] for r in resp["required"]}
