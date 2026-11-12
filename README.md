@@ -42,6 +42,15 @@ python -m app.ingest.build_index # parses the PDFs and builds the index (first r
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
+**Starting it every time** (PowerShell, from the project folder; Ollama must be running, which it is by default after installing the Ollama app):
+
+```powershell
+cd E:\BIZTELAI_Project
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Stop it with `Ctrl+C`. If `index/` is missing (it is not stored in git), run `python -m app.ingest.build_index` first.
+
 Open `http://localhost:8000`. Without the Ollama model the app still runs in **search-only mode**: it shows the
 matching document sections and the status pill says "AI offline: search only".
 
