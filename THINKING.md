@@ -216,8 +216,7 @@ The revised journey introduced several considerations that were missing from my 
 | Safety | Preserve critical instructions, warnings and approval requirements |
 | User experience | Keep the interaction simple and suitable for shop-floor use |
 
-<!-- UPDATE AFTER BUILD: replace the next sentence with what the app actually does -->
-This revised journey represents the intended application experience. The application architecture has been planned in detail, and implementation of the individual features is ongoing.
+This revised journey is what the app now does. A supervisor can type a bare code such as "AL-305" or "bh220 od" and get the matching table row, with the document, revision, section and page. While the AI works they see a status indicator instead of a blank screen. If the answer is not in the documents the app says so and points to the closest documents and to who to ask. For lockout questions it always shows the rule and its exception together, word for word from the SOP (see section 3 and the biggest challenge in section 5).
 
 The main change in my thinking was that a manufacturing copilot should not be evaluated only by how well it generates answers. It should be evaluated by whether it helps a supervisor find the correct, current and complete information when it matters.
 
@@ -227,7 +226,7 @@ The main change in my thinking was that a manufacturing copilot should not be ev
 
 ### Objective
 
-After writing my first draft, I asked an AI tool (Claude) to challenge it from the point of view of a skeptical shop-floor supervisor and a skeptical product manager, to find problems I had overlooked.
+After writing my first draft, I asked an AI tool (Claude) to challenge it from the point of view of a skeptical shop-floor supervisor and a skeptical product manager, to find problems I had overlooked. The twelve points below are Claude's critique of my first draft, which I had already written on my own; the reflection that follows is mine.
 
 ### My prompt
 
@@ -343,6 +342,8 @@ The main changes I identified were:
 - Giving additional attention to safety-critical questions so that important isolation steps, warnings and approval requirements are not omitted.
 - Keeping answers concise and suitable for supervisors accessing the application on mobile devices.
 
+- Not trusting the AI to remember a safety exception. After building the app I saw the small model answer the lockout question with only "each authorised person removes only their own lock" and leave out the owner-absent procedure, which is exactly the half answer the critique warned about. I changed the app so that this is enforced in code instead of asked of the model (details in section 5).
+
 I deliberately kept advanced features such as voice interaction, QR-based machine navigation, multilingual support and offline access outside the immediate scope. I consider these useful future improvements, but I wanted to establish the reliability of the core functionality first.
 
 Overall, this challenge helped me understand that building an AI copilot is not just about retrieving documents and generating responses. It is about ensuring that the information is relevant, current, complete and trustworthy enough to support real decisions.
@@ -353,7 +354,7 @@ Overall, this challenge helped me understand that building an AI copilot is not 
 
 **Selected improvement:**
 
-Revision-aware document identification and visibility. The copilot is designed to distinguish between current and superseded document revisions and make that information visible to the supervisor through source references, revision details and a superseded-document warning.
+Revision-aware document identification and visibility. The copilot distinguishes between current and superseded document revisions and makes that visible to the supervisor through source references, revision details and a superseded-document warning.
 
 **Problem identified:**
 
@@ -369,11 +370,11 @@ I felt that displaying a citation alone would not solve this problem. The applic
 
 I chose revision awareness as the primary user-facing improvement.
 
-The document ingestion process is designed to extract the document number, revision and effective date from each PDF. This information is stored as metadata alongside the extracted document sections.
+The document ingestion process extracts the document number, revision and effective date from each PDF. This information is stored as metadata alongside the extracted document sections.
 
-The retrieval architecture distinguishes between current and superseded revisions. Current documents are prioritised by default, while older revisions can be retrieved when a user explicitly asks about a previous version or a historical change.
+The retrieval distinguishes between current and superseded revisions. Current documents are used by default, while older revisions are retrieved only when a user explicitly asks about a previous version or a historical change.
 
-The user-facing improvement is to display the document revision and effective date alongside the answer. Superseded documents are intended to carry a clearly visible warning so that supervisors can recognise when an older procedure is being referenced.
+The user-facing improvement is that every answer shows the document revision and effective date. Superseded documents carry a clearly visible red warning so that supervisors can recognise when an older procedure is being referenced.
 
 **Why I selected it:**
 
@@ -387,29 +388,28 @@ I also wanted the improvement to demonstrate that document retrieval requires mo
 
 The supervisor does not have to manually compare multiple PDFs to determine which revision is relevant.
 
-Instead, the application is designed to prioritise the current revision and provide revision details directly with the answer.
+Instead, the application uses the current revision and shows the revision details directly with the answer.
 
 This improves trust, reduces the possibility of using outdated instructions and makes the source information easier to verify.
 
-For example, if a supervisor asks how many samples must be inspected from a lot of 200 pieces, the expected answer from Rev 04 is 13 samples, not the five samples specified in Rev 03.
+For example, when I ask the running app how many samples must be inspected from a lot of 200 pieces, it answers 13 from Rev 04, not the five samples specified in Rev 03. In my evaluation none of the 17 questions that did not ask about an old revision used a Rev 03 source.
 
 The revision information also makes it easier to understand why an answer has been generated and which version of the procedure supports it.
 
 **Implementation details:**
 
-I planned the implementation as part of the document ingestion and retrieval architecture.
+This is how it is built:
 
 - During ingestion, the application extracts the document number, revision and effective date from the PDF header.
 - Each document section stores its revision metadata and a status identifying it as current or superseded.
 - The retrieval process uses both vector similarity and keyword matching, with Reciprocal Rank Fusion (RRF) to combine the results.
 - Superseded document sections are excluded from normal retrieval unless the question explicitly refers to an older revision or a historical change.
 - The response includes source information such as document number, revision, section, page number and supporting text.
-- Superseded sources are designed to display a visible warning in the source card.
+- Superseded sources display a red warning in the source card, and a note such as "answered from Rev 04 (current); Rev 03 is superseded and was not used" appears with the answer.
 
-The current architecture uses PyMuPDF for document extraction, BGE-small-en-v1.5 for embeddings, BM25 for keyword retrieval, NumPy for cosine similarity and Ollama for local language-model inference.
+The app uses PyMuPDF for document extraction, BGE-small-en-v1.5 for embeddings, BM25 for keyword retrieval, NumPy for cosine similarity, Ollama (`qwen2.5:3b`) for local language-model inference, FastAPI for the API and a plain HTML/CSS/JS page for the interface.
 
-<!-- UPDATE AFTER BUILD: change "designed to / planned / intended" in this section to what was built, and replace the next sentence -->
-The revision-handling architecture has been planned in detail, and the associated user-facing functionality is part of the ongoing implementation.
+One honest limit: "current" means "the highest revision number found in the PDFs I was given". The app cannot know whether the plant has issued a newer revision that is not in the folder. That is why one of my customer questions is about an authoritative source of document status.
 
 ---
 
@@ -424,7 +424,9 @@ Some of the improvements I would consider are:
 - **Filtering by machine and area:** With hundreds of SOPs, the application should allow supervisors to narrow down information based on their production line, machine or department before retrieving relevant content.
 - **Document lifecycle integration:** Instead of identifying current and superseded documents only through revision information extracted from PDFs, I would integrate with the plant's QMS to retrieve the officially approved document status.
 - **Multilingual support:** Supervisors should be able to ask questions and receive answers in their preferred language, while retaining references to the original English document.
-- **Feedback mechanism:** I would introduce a way for supervisors to report incorrect or incomplete answers. This feedback could help identify retrieval problems and improve the evaluation dataset.
+- **Feedback review:** the app already stores a thumbs up or down for each answer, linked to the full trace of that question. The next step is a screen where an engineer reviews the "not helpful" ones and turns them into new evaluation questions.
+- **A bigger model, measured:** I chose a 1.9 GB model so the app runs on one laptop. I did not have time to test a 7B or 8B model on the same evaluation. I would run it and compare, rather than assume it is better.
+- **More general exception handling:** the app only recognises an exception when it is written as its own section with a telling heading. Real SOPs also hide exceptions inside paragraphs and tables.
 - **Conversation history:** Supervisors should be able to revisit previous questions and share relevant information during shift handovers.
 - **Authentication and access control:** Users should only be able to access documents and information appropriate to their roles and responsibilities.
 - **Offline and low-connectivity support:** Since network connectivity can be inconsistent on manufacturing floors, I would explore caching frequently accessed information and providing a useful experience during temporary network interruptions.
@@ -433,11 +435,12 @@ I would prioritise these improvements based on actual customer feedback rather t
 
 ### What I am unsure about
 
-Although I have planned the architecture in detail, there are several areas that I would want to validate through implementation, testing and real-world usage.
+I have built and measured the app, but several things remain uncertain.
 
-- **Evaluation dataset size:** My proposed evaluation dataset contains approximately 15–20 questions across seven pages of source documents. This is useful for identifying initial issues, but it is not sufficient to establish production-level reliability.
+- **Evaluation dataset size:** My evaluation has 24 questions (18 answerable, 6 not) across seven pages of source documents. It found real bugs, and I also tuned the app while looking at it, so the scores (for example 89% of key facts correct) are optimistic. It cannot establish production-level reliability.
 - **Retrieval reliability at scale:** The current document collection is small. I am unsure how retrieval performance will change when the system contains hundreds of documents with overlapping terminology and similar procedures.
-- **Table interpretation:** Manufacturing documents contain important numerical values, tolerances and inspection criteria. I would like to evaluate how reliably a smaller local language model interprets complex tables and preserves the relationship between values and their corresponding characteristics.
+- **Table interpretation by a small model:** This was not hypothetical. The 1.9 GB model said spindle runout is checked "quarterly" when the table says monthly, and it dropped a trailing zero from a tolerance (0.05 instead of 0.050). Two fixes helped (giving the model each row as "Header: value" text, and a check that restores dropped digits), but I cannot promise it will never misread a table I have not tested.
+- **Bare codes:** a query such as "AL-305" still gets the action ("stop cycle, check tool wear") without the meaning ("spindle overload") in two of my test questions.
 - **Document lifecycle:** I do not know how frequently the plant updates its SOPs, how superseded documents are managed or whether an authoritative system identifies the currently approved revision.
 - **Multi-plant requirements:** It is unclear whether the application should eventually support multiple plants, each with different procedures and document permissions.
 - **Answer detail:** Different situations may require different levels of detail. An alarm-related question may need a short action, whereas a maintenance procedure may require several steps and safety precautions.
@@ -464,30 +467,36 @@ I believe understanding these requirements would help determine which features s
 
 ### Biggest technical challenge and how I handled it
 
-<!-- UPDATE AFTER BUILD: the brief asks for challenges faced "while building and deploying". Add what actually went wrong (for example table extraction, model speed, phone access over Wi-Fi) and remove the "still under development" paragraph at the end. -->
-The biggest technical challenge I identified during this project was ensuring that the application retrieves the correct information rather than simply retrieving information that looks semantically similar to the question.
+**The biggest challenge: getting a small local model to give a complete answer on safety-critical text.**
 
-Initially, a conventional vector-based RAG approach appeared sufficient for the small collection of documents. However, analysing the actual PDFs revealed several problems that required a more deliberate retrieval strategy.
+Retrieval turned out to be the easier half. Reading the PDFs first let me choose section-based chunking, keep tables whole, handle the Rev 03 / Rev 04 conflict, and combine keyword and vector search so that codes such as AL-104 or BH-220 are found. All five sample questions retrieved the right section in the top four on the first run.
 
-The first challenge was document revision conflicts. QC-SOP-014 Rev 03 and Rev 04 contain different instructions despite having the same document number and title. A retrieval system based only on semantic similarity could return an outdated instruction.
+The hard part came when I connected the model (`qwen2.5:3b`, 1.9 GB, chosen so it runs on one laptop). Its first real answers had four problems:
 
-To address this, I designed revision-aware ingestion and retrieval. Each document section carries metadata such as document number, revision, effective date and document status. The retrieval process prioritises current revisions and excludes superseded content by default.
+1. **A half answer on lockout.** "Who is allowed to remove a lockout lock?" got only "each authorised person removes only their own lock". The owner-absent procedure (the Production Manager and the Safety Officer must both authorise) was missing, even though that section was in the text it was given. This is exactly what the AI critique of my journey warned about.
+2. **A wrong fact from a table.** It said spindle runout is checked "quarterly" instead of monthly.
+3. **A changed tolerance.** It wrote `+/- 0.05` for `+/- 0.050`.
+4. **A wrong citation, and a 95-second first answer** (the model loading cold).
 
-The second challenge was preserving document structure during extraction and chunking. Important information appears inside tables, and some sections continue across page boundaries. Splitting documents into arbitrary fixed-size chunks could separate a value from its corresponding parameter or divide a procedure into incomplete steps.
+What I tried, including what did not work:
 
-I addressed this at the architectural level by choosing document-structure-based chunking. Each numbered section is treated as a retrieval unit, while tables are converted into Markdown rows and kept together with their headers. Page information is retained so that the application can identify where the supporting information originated.
+- Stricter prompt rules and an extra "exceptions" field in the model's answer. This helped a little and did not fix the lockout answer.
+- Giving the model each table row as "Header: value" text instead of a Markdown grid, and a check that restores digits the model drops. Key facts went from 69% to 81% on my evaluation, and the runout and tolerance answers became correct.
+- A citation check that only accepts a source if the answer text really appears in it. My first version was too strict and made the app refuse questions it could answer (key facts fell to 62%), so I changed the rule and re-measured.
+- A rule that moved "barely used" safety sections into an "also read" list. It picked the wrong section on the lockout question, so I removed it rather than ship something I could not trust.
+- Loading the model when the server starts, which removed the 95-second first answer.
 
-Another challenge was retrieving exact technical identifiers such as AL-104, BH-220, QF-07A and SF-12. These identifiers are important in manufacturing documents, but semantic similarity alone may not reliably retrieve them.
+What finally worked was to stop asking the model to be complete and make the app enforce it. At ingest, the app detects sections that are exceptions from their headings (for example "Removal of a Lock When the Owner Is Absent") and links each to the rule it qualifies. At answer time, whenever either half is cited, both are shown word for word under the answer, and both are given to the model. In my evaluation the exception was shown in 2 of 2 lockout questions, while the model's own answer text contained it in 0 of 2. It showed up on none of the unrelated questions. Along the way I also fixed a case where the model contradicted itself ("not answerable" while writing the correct exception), which had made the app say "not found" on a safety question the documents do answer.
 
-For this reason, I selected hybrid retrieval using BM25 keyword search alongside vector similarity, combining their rankings through Reciprocal Rank Fusion. This allows the system to benefit from both exact terminology matching and semantic understanding.
+Final numbers from `eval/results.md` (24 questions): key facts 16/18, citations 18/18, 0 of 6 unanswerable questions answered, 0 of 18 answerable questions refused, 0 of 17 using the old revision. I treat these as a sanity check, not proof, because I tuned the app while looking at these same questions.
 
-I also considered the problem of incomplete answers. For example, answering who can remove a lockout lock requires more than retrieving the normal lock-removal rule. The exceptional procedure for an absent lock owner must also be considered. Similarly, replacing a hydraulic hose requires the relevant Lockout/Tagout precautions.
+**Other problems while building and deploying**
 
-My design therefore retrieves multiple relevant sections and provides the language model with the retrieved evidence. The response is structured to identify whether the question is answerable and which sources support the answer. A citation validation step is also included in the planned query pipeline to prevent unsupported answers from being presented as document-grounded responses.
-
-These decisions helped me establish a more deliberate architecture instead of adding components without understanding the problems they solve.
-
-The application features are still under development, so I have not treated the proposed evaluation metrics or deployment steps as completed results. I would validate retrieval accuracy, citation correctness, unsupported-answer handling, superseded-document leakage and response latency before considering the application ready for real-world use.
+- **Unreliable network.** `ollama pull` failed twice with a TLS timeout and then "no such host" because the Wi-Fi DNS kept dropping. The download resumes where it stopped, so I ran it in a retry loop. The same network problem made the server hang at startup trying to reach huggingface.co for a model that was already on disk, so the app now loads the local copy first. This matters for a plant network with no internet.
+- **A silent bug in a safety check.** I wrote a regular expression in a Python string with `\b`, which Python turned into a backspace character. The check for codes that are in no document (for example AL-999) silently never fired, so the app tried to answer. I found it only because I tested AL-999 and CNC-12 and they were not refused.
+- **Stale page on the phone.** The browser kept showing an old version of the interface after I changed it, so the server now sends no-cache headers for the interface files.
+- **Dependency install and a restart.** `pip` failed on a Windows file lock and needed a retry, and Ollama had stopped overnight (I did not find out why) in the middle of an evaluation run. I only noticed because two answers suddenly looked wrong, so I re-ran the whole evaluation after restarting it. Response time also varied (about 2.5 seconds on a good run, up to 22 seconds on a slow one).
+- **Opening it from the phone:** **[Add after the phone test: what you saw, and what you had to change, for example the Windows firewall rule for port 8000 and the "Public" network profile.]**
 
 ### Overall reflection
 
@@ -497,7 +506,9 @@ My main takeaway is that a manufacturing copilot needs more than semantic search
 
 I also realised that choosing the right architecture is not about including every available technology. For this project, I deliberately avoided adding a vector database, reranker, OCR pipeline and additional orchestration frameworks because the supplied documents are small, digitally readable and structurally organised. I wanted each component to solve a specific problem rather than introduce unnecessary complexity.
 
-My approach was to first understand the user, study the source documents, identify the risks, compare architectural options and then plan an implementation that addresses those requirements. The resulting design uses section-aware chunking, table preservation, hybrid retrieval, revision filtering and source-grounded response generation.
+My approach was to first understand the user, study the source documents, identify the risks, compare architectural options, then build the app and measure it. The result uses section-aware chunking, table preservation, hybrid retrieval, revision filtering, source-grounded answers and, for safety rules, required evidence that the app shows itself.
+
+The most useful lesson was about trust. A small model will sometimes give a fluent, partly right answer, and a prompt asking it to "include exceptions" did not reliably work. For anything safety-related I now prefer a rule in code that I can test over a request to the model that I can only hope for.
 
 I also recognise the limitations of the current scope. Seven pages of sample documents cannot represent the complexity of a real manufacturing knowledge base, and a small evaluation dataset cannot establish production-level reliability.
 
